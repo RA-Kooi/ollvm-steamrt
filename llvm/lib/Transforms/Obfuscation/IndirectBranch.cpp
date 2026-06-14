@@ -18,7 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
 #include <random>
 
-PreservedAnalyses IndirectBranchPass::run(Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses IndirectBranchPass::run(Module &M,
+                                          ModuleAnalysisManager &AM) {
   if (this->flag) {
     outs() << "[Soule] force.run.IndirectBranchPass\n";
   }
@@ -29,7 +30,8 @@ PreservedAnalyses IndirectBranchPass::run(Module &M, ModuleAnalysisManager &AM) 
         continue;
       }
 
-      if (Fn.empty() || Fn.hasLinkOnceLinkage() || Fn.getSection() == ".text.startup") {
+      if (Fn.empty() || Fn.hasLinkOnceLinkage() ||
+          Fn.getSection() == ".text.startup") {
         continue;
       }
 
@@ -122,7 +124,8 @@ void IndirectBranchPass::NumberBasicBlock(Function &F) {
   }
 }
 
-GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F, ConstantInt *EncKey) {
+GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
+                                                       ConstantInt *EncKey) {
   std::string GVName(F.getName().str() + "_IndirectBrTargets");
   GlobalVariable *GV = F.getParent()->getNamedGlobal(GVName);
   if (GV)
@@ -131,15 +134,17 @@ GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F, ConstantInt 
   // encrypt branch targets
   std::vector<Constant *> Elements;
   for (const auto BB : BBTargets) {
-    Constant *CE = ConstantExpr::getBitCast(BlockAddress::get(BB),
-                                            llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
+    Constant *CE = ConstantExpr::getBitCast(
+        BlockAddress::get(BB),
+        llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
     CE = ConstantExpr::getGetElementPtr(Type::getInt8Ty(F.getContext()), CE,
                                         EncKey);
     Elements.push_back(CE);
   }
 
   ArrayType *ATy =
-      ArrayType::get(llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0), Elements.size());
+      ArrayType::get(llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0),
+                     Elements.size());
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
   GV =
       new GlobalVariable(*F.getParent(), ATy, false,

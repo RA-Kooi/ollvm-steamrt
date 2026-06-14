@@ -1,26 +1,26 @@
 #ifndef OBFUSCATION_OBFUSCATIONOPTIONS_H
 #define OBFUSCATION_OBFUSCATIONOPTIONS_H
-#include <set>
 #include <llvm/Support/YAMLParser.h>
+#include <set>
 namespace llvm {
-    struct ObfuscationOptions {
-        explicit ObfuscationOptions(const Twine &FileName);
-        explicit ObfuscationOptions();
-        bool skipFunction(const Twine &FName);
-        void dump();
+struct ObfuscationOptions {
+  explicit ObfuscationOptions(const Twine &FileName);
+  explicit ObfuscationOptions();
+  bool skipFunction(const Twine &FName);
+  void dump();
 
-        bool EnableIndirectBr;
-        bool EnableIndirectCall;
-        bool EnableIndirectGV;
-        bool EnableCFF;
-        bool EnableCSE;
-        bool hasFilter;
+  bool EnableIndirectBr;
+  bool EnableIndirectCall;
+  bool EnableIndirectGV;
+  bool EnableCFF;
+  bool EnableCSE;
+  bool hasFilter;
 
-    private:
-        void init();
-        void handleRoot(yaml::Node *n);
-        bool parseOptions(const Twine &FileName);
-        std::set<std::string> FunctionFilter;
-    };
-}
+private:
+  void init();
+  void handleRoot(yaml::Node *n);
+  bool parseOptions(const Twine &FileName);
+  std::set<std::string> FunctionFilter;
+};
+} // namespace llvm
 #endif

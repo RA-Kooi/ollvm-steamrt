@@ -18,7 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h"
 #include <random>
 
-PreservedAnalyses IndirectGlobalVariablePass::run(Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
+                                                  ModuleAnalysisManager &AM) {
 
   if (this->flag) {
     outs() << "[Soule] force.run.IndirectGlobalVariablePass\n";
@@ -46,7 +47,9 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M, ModuleAnalysisManag
 
     uint64_t V = RandomEngine.get_uint64_t();
     IntegerType *intType = Type::getInt32Ty(Ctx);
-    unsigned pointerSize = Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(PointerType::getUnqual(Fn.getContext())); // Soule
+    unsigned pointerSize =
+        Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
+            PointerType::getUnqual(Fn.getContext())); // Soule
     if (pointerSize == 8) {
       intType = Type::getInt64Ty(Ctx);
     }
@@ -117,7 +120,6 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M, ModuleAnalysisManag
         }
       }
     }
-
   }
   return PreservedAnalyses::none();
 }
@@ -137,7 +139,9 @@ void IndirectGlobalVariablePass::NumberGlobalVariable(Function &F) {
   }
 }
 
-GlobalVariable* IndirectGlobalVariablePass::getIndirectGlobalVariables(Function &F, ConstantInt *EncKey) {
+GlobalVariable *
+IndirectGlobalVariablePass::getIndirectGlobalVariables(Function &F,
+                                                       ConstantInt *EncKey) {
   std::string GVName(F.getName().str() + "_IndirectGVars");
   GlobalVariable *GV = F.getParent()->getNamedGlobal(GVName);
   if (GV)
@@ -145,15 +149,16 @@ GlobalVariable* IndirectGlobalVariablePass::getIndirectGlobalVariables(Function 
 
   std::vector<Constant *> Elements;
   for (auto GVar : GlobalVariables) {
-    Constant *CE =
-        ConstantExpr::getBitCast(GVar, llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
+    Constant *CE = ConstantExpr::getBitCast(
+        GVar, llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
     CE = ConstantExpr::getGetElementPtr(Type::getInt8Ty(F.getContext()), CE,
                                         EncKey);
     Elements.push_back(CE);
   }
 
   ArrayType *ATy =
-      ArrayType::get(llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0), Elements.size());
+      ArrayType::get(llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0),
+                     Elements.size());
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
   GV =
       new GlobalVariable(*F.getParent(), ATy, false,
@@ -161,7 +166,6 @@ GlobalVariable* IndirectGlobalVariablePass::getIndirectGlobalVariables(Function 
   appendToCompilerUsed(*F.getParent(), {GV});
   return GV;
 }
-
 
 IndirectGlobalVariablePass *llvm::createIndirectGlobalVariable(bool flag) {
   return new IndirectGlobalVariablePass(flag);
