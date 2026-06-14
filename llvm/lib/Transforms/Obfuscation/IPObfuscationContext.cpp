@@ -16,7 +16,6 @@
 
 using namespace llvm;
 
-namespace llvm {
 bool IPObfuscationContext::runOnModule(llvm::Module &M) {
   for (auto &F : M) {
     SurveyFunction(F);
@@ -291,9 +290,8 @@ void IPObfuscationContext::computeCallSiteSecretArgument(Function *F) {
     IRB.CreateStore(CalleeSecret, CallerIPOInfo->CalleeSlot);
   }
 }
-} // namespace llvm
 
-IPObfuscationContext *llvm::createIPObfuscationContextPass(bool flag) {
+IPObfuscationContext *createIPObfuscationContextPass(bool flag) {
   return new IPObfuscationContext(flag);
 }
 

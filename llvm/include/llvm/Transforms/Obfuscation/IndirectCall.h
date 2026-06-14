@@ -3,7 +3,6 @@
 
 #include "llvm/Analysis/CFG.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -11,10 +10,9 @@
 #include "CryptoUtils.h"
 #include "IPObfuscationContext.h"
 #include "ObfuscationOptions.h"
-#include "Utils.h"
-#include "compat/CallSite.h"
 
-#include <random>
+#include <map>
+#include <vector>
 
 namespace llvm {
 class IndirectCallPass : public PassInfoMixin<IndirectCallPass> {

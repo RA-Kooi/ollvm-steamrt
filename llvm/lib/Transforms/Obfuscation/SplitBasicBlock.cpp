@@ -13,13 +13,19 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
+
+#include "llvm/ADT/Statistic.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 
-using namespace llvm;
-using std::vector;
+#include <vector>
 
 #define DEBUG_TYPE "split"
+
+using namespace llvm;
 
 STATISTIC(Split, "Basicblock splitted");
 

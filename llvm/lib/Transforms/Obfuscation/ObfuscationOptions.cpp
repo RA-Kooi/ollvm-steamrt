@@ -5,11 +5,9 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include <string>
 
 using namespace llvm;
 
-namespace llvm {
 void ObfuscationOptions::init() {
   EnableIndirectBr = false;
   EnableIndirectCall = false;
@@ -108,5 +106,3 @@ void ObfuscationOptions::dump() {
          << "EnableCFF: " << EnableCFF << "\n"
          << "hasFilter:" << hasFilter << "\n";
 }
-
-} // namespace llvm

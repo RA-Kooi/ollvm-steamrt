@@ -1,4 +1,5 @@
-// Based on the original OLLVM code: https://github.com/obfuscator-llvm/obfuscator
+// Based on the original OLLVM code:
+// https://github.com/obfuscator-llvm/obfuscator
 
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/IR/IRBuilder.h"
@@ -7,7 +8,6 @@
 #include "llvm/IR/NoFolder.h"
 
 using namespace llvm;
-using std::vector;
 
 LLVMContext *CONTEXT = nullptr;
 bool obf_function_name_cmd = false;

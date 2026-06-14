@@ -118,9 +118,24 @@
 //
 //===----------------------------------------------------------------------------------===//
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
+
+#include "llvm/ADT/Statistic.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
+#include <list>
 
 #define DEBUG_TYPE "BogusControlFlow"
+
+using namespace llvm;
 
 STATISTIC(NumFunction, "a. Number of functions in this module");
 STATISTIC(NumTimesOnFunctions, "b. Number of times we run on each function");

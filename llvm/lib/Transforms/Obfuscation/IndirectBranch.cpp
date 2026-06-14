@@ -16,7 +16,13 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
+
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
 #include <random>
+
+using namespace llvm;
 
 PreservedAnalyses IndirectBranchPass::run(Module &M,
                                           ModuleAnalysisManager &AM) {

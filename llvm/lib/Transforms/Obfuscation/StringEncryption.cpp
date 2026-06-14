@@ -1,5 +1,9 @@
 #include "llvm/Transforms/Obfuscation/StringEncryption.h"
 
+#include "llvm/Support/SHA1.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
+
 #define DEBUG_TYPE "strenc"
 
 using namespace llvm;

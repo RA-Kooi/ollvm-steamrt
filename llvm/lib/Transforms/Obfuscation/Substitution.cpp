@@ -13,13 +13,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Obfuscation/Substitution.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 
 #define DEBUG_TYPE "substitution"
+
+using namespace llvm;
 
 static cl::opt<int>
     ObfTimes("sub_loop",

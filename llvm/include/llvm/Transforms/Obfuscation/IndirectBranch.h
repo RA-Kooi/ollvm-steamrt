@@ -2,23 +2,19 @@
 #define LLVM_INDIRECTBRANCH_H
 
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 #include "CryptoUtils.h"
 #include "ObfuscationOptions.h"
-#include "Utils.h"
 
-using namespace llvm;
-using namespace std;
+#include <map>
+#include <vector>
+
 namespace llvm {
 class IndirectBranchPass : public PassInfoMixin<IndirectBranchPass> {
 public:
