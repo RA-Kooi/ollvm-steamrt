@@ -1,8 +1,9 @@
-#include "Flattening.h"
-#include "CryptoUtils.h"
-#include "SplitBasicBlock.h"
-#include "Utils.h"
+#include "llvm/Transforms/Obfuscation/Flattening.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
+#include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
+
 // namespace
 using namespace llvm;
 using std::vector;
@@ -38,12 +39,9 @@ bool FlatteningPass::flatten(Function *f) {
   std::unordered_map<uint32_t, uint32_t> scrambling_key;
   // END OF SCRAMBLER
 
-  PassBuilder PB;
   FunctionAnalysisManager FAM;
-  FunctionPassManager FPM;
-  PB.registerFunctionAnalyses(FAM);
-  FPM.addPass(LowerSwitchPass());
-  FPM.run(*f, FAM);
+  LowerSwitchPass switchPass;
+  switchPass.run(*f, FAM);
 
   for (BasicBlock &BB : *f) {
     if (BB.isEHPad() || BB.isLandingPad()) {

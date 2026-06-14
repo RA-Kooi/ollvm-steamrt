@@ -116,7 +116,7 @@
 // option : -boguscf
 //
 //===----------------------------------------------------------------------------------===//
-#include "BogusControlFlow.h"
+#include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/IR/IntrinsicInst.h"
 
 #define DEBUG_TYPE "BogusControlFlow"

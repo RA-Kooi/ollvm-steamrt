@@ -13,9 +13,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 // User libs
-#include "Utils.h"
-#include "CryptoUtils.h"
-#include "SplitBasicBlock.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
+#include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
 // namespace
 using namespace llvm;
 using std::vector;
@@ -25,15 +25,15 @@ using std::vector;
 STATISTIC(Split, "Basicblock splitted"); // 宏定义
 
 // 可选的参数，指定一个基本块会被分裂成几个基本块，默认值为 3
-static cl::opt<int> SplitNum("split_num", cl::init(3), cl::desc("Split <split_num> time(s) each BB")); 
+static cl::opt<int> SplitNum("split_num", cl::init(3), cl::desc("Split <split_num> time(s) each BB"));
 // 貌似NEW PM暂时不支持这种传递
 
 /**
  * @brief 新的实现方案
- * 
- * @param F 
- * @param AM 
- * @return PreservedAnalyses 
+ *
+ * @param F
+ * @param AM
+ * @return PreservedAnalyses
  */
 PreservedAnalyses SplitBasicBlockPass::run(Function& F, FunctionAnalysisManager& AM) {
     Function *tmp = &F; // 传入的Function
@@ -47,8 +47,8 @@ PreservedAnalyses SplitBasicBlockPass::run(Function& F, FunctionAnalysisManager&
 
 /**
  * @brief 对传入的基本块做分割
- * 
- * @param BB 
+ *
+ * @param BB
  */
 void SplitBasicBlockPass::split(Function *f){
     std::vector<BasicBlock *> origBB;
@@ -106,10 +106,10 @@ void SplitBasicBlockPass::split(Function *f){
 
 /**
  * @brief 判断基本块是否包含PHI指令
- * 
- * @param BB 
- * @return true 
- * @return false 
+ *
+ * @param BB
+ * @return true
+ * @return false
  */
 bool SplitBasicBlockPass::containsPHI(BasicBlock *BB){
     for (Instruction &I : *BB){
@@ -122,8 +122,8 @@ bool SplitBasicBlockPass::containsPHI(BasicBlock *BB){
 
 /**
  * @brief 辅助分割流程的函数
- * 
- * @param vec 
+ *
+ * @param vec
  */
 void SplitBasicBlockPass::shuffle(std::vector<int> &vec){
     int n = vec.size();

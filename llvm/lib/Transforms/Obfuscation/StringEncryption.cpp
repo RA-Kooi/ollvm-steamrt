@@ -1,4 +1,4 @@
-#include "StringEncryption.h"
+#include "llvm/Transforms/Obfuscation/StringEncryption.h"
 
 #define DEBUG_TYPE "strenc"
 
