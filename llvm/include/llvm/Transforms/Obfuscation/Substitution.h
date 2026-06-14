@@ -1,5 +1,5 @@
 //===- SubstitutionIncludes.h - Substitution Obfuscation
-//pass-------------------------===//
+// pass-------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -15,18 +15,16 @@
 #ifndef _SUBSTITUTIONS_H_
 #define _SUBSTITUTIONS_H_
 
-// LLVM include
 #include "CryptoUtils.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/PassManager.h" //new Pass
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
 
-// Namespace
 using namespace llvm;
 
 #define NUMBER_ADD_SUBST 4
@@ -87,9 +85,10 @@ public:
   void xorSubstitution(BinaryOperator *bo);
   void xorSubstitutionRand(BinaryOperator *bo);
 
-  static bool isRequired() { return true; } // 眻諉殿隙true撈褫
+  static bool isRequired() { return true; }
 };
-SubstitutionPass *createSubstitutionPass(bool flag); // 斐膘價掛輸煦賃
+
+SubstitutionPass *createSubstitutionPass(bool flag);
 } // namespace llvm
 
 #endif

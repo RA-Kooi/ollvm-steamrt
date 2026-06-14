@@ -12,88 +12,89 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-// User libs
 #include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
-// namespace
+
 using namespace llvm;
 using std::vector;
 
-#define DEBUG_TYPE "split" // 调试标识
-// Stats
-STATISTIC(Split, "Basicblock splitted"); // 宏定义
+#define DEBUG_TYPE "split"
 
-// 可选的参数，指定一个基本块会被分裂成几个基本块，默认值为 3
+STATISTIC(Split, "Basicblock splitted");
+
 static cl::opt<int> SplitNum("split_num", cl::init(3),
                              cl::desc("Split <split_num> time(s) each BB"));
-// 貌似NEW PM暂时不支持这种传递
 
-/**
- * @brief 新的实现方案
- *
- * @param F
- * @param AM
- * @return PreservedAnalyses
- */
+// It seems that NEW PM does not currently support this type of transmission.
+
 PreservedAnalyses SplitBasicBlockPass::run(Function &F,
                                            FunctionAnalysisManager &AM) {
-  Function *tmp = &F;                    // 传入的Function
-  if (toObfuscate(flag, tmp, "split")) { // 判断什么函数需要开启混淆
-    split(tmp);                          // 分割流程
-    ++Split;                             // 计次
+  Function *tmp = &F;
+  if (toObfuscate(flag, tmp, "split")) {
+    split(tmp);
+    ++Split;
     return PreservedAnalyses::none();
   }
   return PreservedAnalyses::all();
 }
 
-/**
- * @brief 对传入的基本块做分割
- *
- * @param BB
- */
 void SplitBasicBlockPass::split(Function *f) {
   std::vector<BasicBlock *> origBB;
-  // 保存所有基本块 防止分割的同时迭代新的基本块
+  // Save all basic blocks to prevent splitting while iterating over new basic
+  // blocks.
   for (Function::iterator I = f->begin(), IE = f->end(); I != IE; ++I) {
     origBB.push_back(&*I);
   }
-  // 遍历函数的全部基本块
+
+  // All basic blocks of the traversal function.
   for (std::vector<BasicBlock *>::iterator I = origBB.begin(),
                                            IE = origBB.end();
        I != IE; ++I) {
     BasicBlock *curr = *I;
+
     // outs() << "\033[1;32mSplitNum : " << SplitNum << "\033[0m\n";
     // outs() << "\033[1;32mBasicBlock Size : " << curr->size() << "\033[0m\n";
+
     int splitN = SplitNum;
-    // 无需分割只有一条指令的基本块
-    // 不可分割含有PHI指令基本块
+
+    // No need to divide a basic block into only one instruction
+    // Indivisible basic blocks containing PHI instructions
     if (curr->size() < 2 || containsPHI(curr)) {
-      // outs() << "\033[0;33mThis BasicBlock is lower then two or had PIH
-      // Instruction!\033[0m\n";
+      /* outs() << "\033[0;33mThis BasicBlock is lower then two or had PIH "
+                "Instruction!\033[0m\n"; */
       continue;
     }
-    // 检查splitN和基本块大小 如果传入的分割块数甚至大于等于基本块自身大小
-    // 则修改分割数为基本块大小减一
+
+    // Check `splitN` and the size of the basic block. If the number of splits
+    // passed in is greater than or equal to the size of the basic block
+    // itself, then modify the number of splits to the size of the basic block
+    // minus one.
     if ((size_t)splitN >= curr->size()) {
-      // outs() << "\033[0;33mSplitNum is bigger then currBasicBlock's
-      // size\033[0m\n"; // warning outs() << "\033[0;33mSo SplitNum Now is
-      // BasicBlock's size -1 : " << (curr->size() - 1) << "\033[0m\n";
+      /* outs()
+          << "\033[0;33mSplitNum is bigger then currBasicBlock's size\033[0m\n";
+
+      outs() << "\033[0;33mSo SplitNum Now is BasicBlock's size -1 : "
+             << (curr->size() - 1) << "\033[0m\n"; */
+
       splitN = curr->size() - 1;
     } else {
       // outs() << "\033[1;32msplitNum Now is " << splitN << "\033[0m\n";
     }
+
     // Generate splits point
     std::vector<int> test;
     for (unsigned i = 1; i < curr->size(); ++i) {
       test.push_back(i);
     }
+
     // Shuffle
     if (test.size() != 1) {
       shuffle(test);
       std::sort(test.begin(), test.begin() + splitN);
     }
-    // 分割
+
+    // Segment
     BasicBlock::iterator it = curr->begin();
     BasicBlock *toSplit = curr;
     int last = 0;
@@ -107,17 +108,11 @@ void SplitBasicBlockPass::split(Function *f) {
       last = test[i];
       toSplit = toSplit->splitBasicBlock(it, toSplit->getName() + ".split");
     }
+
     ++Split;
   }
 }
 
-/**
- * @brief 判断基本块是否包含PHI指令
- *
- * @param BB
- * @return true
- * @return false
- */
 bool SplitBasicBlockPass::containsPHI(BasicBlock *BB) {
   for (Instruction &I : *BB) {
     if (isa<PHINode>(&I)) {
@@ -127,11 +122,6 @@ bool SplitBasicBlockPass::containsPHI(BasicBlock *BB) {
   return false;
 }
 
-/**
- * @brief 辅助分割流程的函数
- *
- * @param vec
- */
 void SplitBasicBlockPass::shuffle(std::vector<int> &vec) {
   int n = vec.size();
   for (int i = n - 1; i > 0; --i) {
@@ -139,12 +129,6 @@ void SplitBasicBlockPass::shuffle(std::vector<int> &vec) {
   }
 }
 
-/**
- * @brief 便于调用基本块分割
- *
- * @param flag
- * @return FunctionPass*
- */
 SplitBasicBlockPass *llvm::createSplitBasicBlock(bool flag) {
   return new SplitBasicBlockPass(flag);
 }

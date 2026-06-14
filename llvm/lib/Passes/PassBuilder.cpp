@@ -382,16 +382,14 @@
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/SandboxVectorizer/SandboxVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
-// 引用 Obfuscation 相关文件
-#include "llvm/Transforms/Obfuscation/BogusControlFlow.h" // 虚假控制流
-#include "llvm/Transforms/Obfuscation/Flattening.h"  // 控制流平坦化
-#include "llvm/Transforms/Obfuscation/IndirectBranch.h" // 间接跳转
-#include "llvm/Transforms/Obfuscation/IndirectCall.h" // 间接调用
-#include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h" // 间接全局变量
-#include "llvm/Transforms/Obfuscation/SplitBasicBlock.h" // 基本块分割
-#include "llvm/Transforms/Obfuscation/StringEncryption.h" // 字符串加密
-#include "llvm/Transforms/Obfuscation/Substitution.h" // 指令替换
-#include "llvm/Transforms/Obfuscation/Utils.h" // 为了控制函数名混淆开关 (bool obf_function_name_cmd;)
+#include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
+#include "llvm/Transforms/Obfuscation/Flattening.h"
+#include "llvm/Transforms/Obfuscation/IndirectBranch.h"
+#include "llvm/Transforms/Obfuscation/IndirectCall.h"
+#include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h"
+#include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
+#include "llvm/Transforms/Obfuscation/StringEncryption.h"
+#include "llvm/Transforms/Obfuscation/Substitution.h"
 #include <optional>
 
 using namespace llvm;

@@ -1,6 +1,6 @@
 #ifndef _BOGUSCONTROLFLOW_H_
 #define _BOGUSCONTROLFLOW_H_
-// LLVM libs
+
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -23,27 +23,27 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
-// System libs
 #include <list>
 #include <memory>
-// User libs
+
 #include "CryptoUtils.h"
 #include "Utils.h"
+
 using namespace std;
 using namespace llvm;
-namespace llvm { // 基本块分割
+namespace llvm {
 class BogusControlFlowPass : public PassInfoMixin<BogusControlFlowPass> {
 public:
   bool flag;
-  BogusControlFlowPass(bool flag) { this->flag = flag; } // 携带flag的构造函数
-  PreservedAnalyses run(Function &F,
-                        FunctionAnalysisManager &AM); // Pass实现函数
+  BogusControlFlowPass(bool flag) { this->flag = flag; }
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
   void bogus(Function &F);
   void addBogusFlow(BasicBlock *basicBlock, Function &F);
   bool doF(Module &M, Function &F);
-  static bool isRequired() { return true; } // 直接返回true即可
+  static bool isRequired() { return true; }
 };
-BogusControlFlowPass *createBogusControlFlow(bool flag); // 创建基本块分割
+
+BogusControlFlowPass *createBogusControlFlow(bool flag);
 } // namespace llvm
 
 #endif

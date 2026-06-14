@@ -1,14 +1,5 @@
-/**
- * @file Utils.cpp
- * @author SsageParuders
- * @brief 本代码参考原OLLVM项目:https://github.com/obfuscator-llvm/obfuscator
- *        感谢地球人前辈的指点
- * @version 0.1
- * @date 2022-07-14
- *
- * @copyright Copyright (c) 2022
- *
- */
+// Based on the original OLLVM code: https://github.com/obfuscator-llvm/obfuscator
+
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -21,14 +12,7 @@ using std::vector;
 LLVMContext *CONTEXT = nullptr;
 bool obf_function_name_cmd = false;
 
-/**
- * @brief 参考资料:https://www.jianshu.com/p/0567346fd5e8
- *        作用是读取llvm.global.annotations中的annotation值 从而实现过滤函数
- * 只对单独某功能开启PASS
- * @param f
- * @return std::string
- */
-std::string llvm::readAnnotate(Function *f) { // 取自原版ollvm项目
+std::string llvm::readAnnotate(Function *f) {
   std::string annotation = "";
   /* Get annotation variable */
   GlobalVariable *glob =
@@ -74,27 +58,21 @@ std::string llvm::readAnnotate(Function *f) { // 取自原版ollvm项目
   return (annotation);
 }
 
-/**
- * @brief 从注解中获取函数注解
- * 解决在llvm15+上读取不到注解 (测试版本在LLVM-18.0.1)
- * @param F
- * @return std::string
- */
 std::string getFunctionAnnotation(Function *F) {
   Module *M = F->getParent();
-  // 查找名为 "llvm.global.annotations" 的全局变量
   GlobalVariable *GA = M->getNamedGlobal("llvm.global.annotations");
   if (!GA)
-    return ""; // 如果没有注解，返回空字符串
-  // 解析 llvm.global.annotations
+    return "";
+
   if (ConstantArray *CA = dyn_cast<ConstantArray>(GA->getInitializer())) {
     for (unsigned i = 0; i < CA->getNumOperands(); ++i) {
       if (ConstantStruct *CS = dyn_cast<ConstantStruct>(CA->getOperand(i))) {
-        // 第一个元素是被注解的函数
         if (Function *AnnotatedFunction =
                 dyn_cast<Function>(CS->getOperand(0)->stripPointerCasts())) {
           if (AnnotatedFunction == F) {
-            // 第二个元素是注解字符串的全局变量
+            // The second element is a global variable for the annotation string.
+            // NOTE(Dragoon): Whatever the fuck that may mean. The original
+            // chinese comments are beyond useless. Wondering if this is LLM slop.
             if (GlobalVariable *GV = dyn_cast<GlobalVariable>(
                     CS->getOperand(1)->stripPointerCasts())) {
               if (ConstantDataArray *Anno =
@@ -108,44 +86,39 @@ std::string getFunctionAnnotation(Function *F) {
     }
   }
 
-  return ""; // 如果没有找到对应函数的注解，返回空字符串
+  return "";
 }
 
-/**
- * @brief 用于判断是否开启混淆
- *
- * @param flag
- * @param f
- * @param attribute
- * @return true
- * @return false
- */
 bool llvm::toObfuscate(bool flag, Function *f,
-                       std::string const &attribute) { // 取自原版ollvm项目
+                       std::string const &attribute) {
   std::string attr = attribute;
   std::string attrNo = "no" + attr;
-  // Check if declaration
+
   if (f->isDeclaration()) {
     return false;
   }
-  // Check external linkage
+
   if (f->hasAvailableExternallyLinkage() != 0) {
     return false;
   }
+
   // outs() << "[Soule] function: " << f->getName().str() << " # annotation: "
   // << readAnnotate(f) << "\n";
-  //
+
   //  We have to check the nofla flag first
   //  Because .find("fla") is true for a string like "fla" or
   //  "nofla"
   if (getFunctionAnnotation(f).find(attrNo) !=
-      std::string::npos) { // 是否禁止开启XXX
+      std::string::npos) {
     return false;
   }
+
   // If fla annotations
-  if (getFunctionAnnotation(f).find(attr) != std::string::npos) { // 是否开启XXX
+  if (getFunctionAnnotation(f).find(attr) != std::string::npos) {
     return true;
   }
+
+  // TODO(Dragoon): Remove this
   // 由于Visual Studio无法传入annotation,
   // 增加一个使用函数名匹配是否单独开关的功能
   if (obf_function_name_cmd == true) { // 开启使用函数名匹配混淆功能开关
@@ -160,11 +133,8 @@ bool llvm::toObfuscate(bool flag, Function *f,
       return true;
     }
   }
-  // If fla flag is set
-  if (flag == true) { // 开启PASS
-    return true;
-  }
-  return false;
+
+  return flag;
 }
 
 static bool valueEscapes(const Instruction &Inst) {
@@ -174,17 +144,15 @@ static bool valueEscapes(const Instruction &Inst) {
   const BasicBlock *BB = Inst.getParent();
   for (const User *U : Inst.users()) {
     const Instruction *UI = cast<Instruction>(U);
+
     if (UI->getParent() != BB || isa<PHINode>(UI))
       return true;
   }
   return false;
 }
 
-/** LLVM\llvm\lib\Transforms\Scalar\Reg2Mem.cpp
- * @brief 修复PHI指令和逃逸变量
- *
- * @param F
- */
+// LLVM\llvm\lib\Transforms\Scalar\Reg2Mem.cpp
+// TODO(Dragoon): Expose fixStack as a utility function and use that instead.
 void llvm::fixStack(Function &F) {
   // Insert all new allocas into entry block.
   BasicBlock *BBEntry = &F.getEntryBlock();
@@ -227,11 +195,6 @@ void llvm::fixStack(Function &F) {
     DemotePHIToStack(cast<PHINode>(I), AllocaInsertionPoint->getIterator());
 }
 
-/**
- * @brief
- *
- * @param Func
- */
 void llvm::FixFunctionConstantExpr(Function *Func) {
   // Replace ConstantExpr with equal instructions
   // Otherwise replacing on Constant will crash the compiler
@@ -239,11 +202,7 @@ void llvm::FixFunctionConstantExpr(Function *Func) {
     FixBasicBlockConstantExpr(&BB);
   }
 }
-/**
- * @brief
- *
- * @param BB
- */
+
 void llvm::FixBasicBlockConstantExpr(BasicBlock *BB) {
   // Replace ConstantExpr with equal instructions
   // Otherwise replacing on Constant will crash the compiler
@@ -272,12 +231,6 @@ void llvm::FixBasicBlockConstantExpr(BasicBlock *BB) {
   }
 }
 
-/**
- * @brief 随机字符串
- *
- * @param len
- * @return string
- */
 std::string llvm::rand_str(int len) {
   std::string str;
   char c = 'O';
@@ -300,7 +253,8 @@ std::string llvm::rand_str(int len) {
   return str;
 }
 
-// LLVM-MSVC有这个函数, 官方版LLVM没有 (LLVM:17.0.6 | LLVM-MSVC:3.2.6)
+// LLVM-MSVC has this function, but the official LLVM version does not
+// (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).
 void llvm::LowerConstantExpr(Function &F) {
   SmallPtrSet<Instruction *, 8> WorkList;
 

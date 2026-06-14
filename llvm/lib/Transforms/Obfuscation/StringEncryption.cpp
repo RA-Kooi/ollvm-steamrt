@@ -442,9 +442,9 @@ void StringEncryptionPass::collectConstantStringUser(
 bool StringEncryptionPass::isValidToEncrypt(GlobalVariable *GV) {
   if (GV->isConstant() && GV->hasInitializer()) {
     return GV->getInitializer() != nullptr;
-  } else {
-    return false;
   }
+
+  return false;
 }
 
 void StringEncryptionPass::deleteUnusedGlobalVariable() {
