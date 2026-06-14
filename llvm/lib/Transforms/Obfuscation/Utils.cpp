@@ -9,8 +9,11 @@
  * @copyright Copyright (c) 2022
  *
  */
-#include "Utils.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/NoFolder.h"
 
 using namespace llvm;
 using std::vector;
@@ -275,8 +278,8 @@ void llvm::FixBasicBlockConstantExpr(BasicBlock *BB) {
  * @param len
  * @return string
  */
-string llvm::rand_str(int len) {
-  string str;
+std::string llvm::rand_str(int len) {
+  std::string str;
   char c = 'O';
   int idx;
   for (idx = 0; idx < len; idx++) {

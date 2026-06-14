@@ -1,4 +1,4 @@
-#include "IndirectCall.h"
+#include "llvm/Transforms/Obfuscation/IndirectCall.h"
 
 using namespace llvm;
 using std::vector;

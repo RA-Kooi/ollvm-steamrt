@@ -1,20 +1,15 @@
 // #include "llvm/Transforms/Obfuscation/ObfuscationPassManager.h"
 //#include "llvm/Transforms/IPO/PassManagerBuilder.h" // Soule.llvm17.update
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Path.h"
 
-#include "IPObfuscationContext.h"
-#include "Utils.h"
-#include "llvm/IR/IRBuilder.h"
-#include "CryptoUtils.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
+#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 
 #if LLVM_VERSION_MAJOR > 10
-#include "compat/CallSite.h"
+#include "llvm/Transforms/Obfuscation/compat/CallSite.h"
 #else
 #include "llvm/IR/CallSite.h"
 #endif
@@ -321,7 +316,7 @@ namespace llvm
             IRB.CreateStore(CalleeSecret, CallerIPOInfo->CalleeSlot);
         }
     }
-}
+} // namespace llvm
 
 IPObfuscationContext *llvm::createIPObfuscationContextPass(bool flag)
 {

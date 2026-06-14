@@ -12,11 +12,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Substitution.h"
+#include "llvm/Transforms/Obfuscation/Substitution.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/raw_ostream.h"
-#include "Utils.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/Constants.h"
 
 #define DEBUG_TYPE "substitution"
 
@@ -147,26 +148,26 @@ void SubstitutionPass::addNeg(BinaryOperator *bo) {
   }*/
 }
 
-// Implementation of a = -(-b + (-c)) 
-void SubstitutionPass::addDoubleNeg(BinaryOperator *bo) { 
-  BinaryOperator *op, *op2 = NULL; 
-  UnaryOperator *op3, *op4; 
-  if (bo->getOpcode() == Instruction::Add) { 
-    op = BinaryOperator::CreateNeg(bo->getOperand(0), "", bo); 
-    op2 = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo); 
-    op = BinaryOperator::Create(Instruction::Add, op, op2, "", bo); 
-    op = BinaryOperator::CreateNeg(op, "", bo); 
-    bo->replaceAllUsesWith(op); 
-    // Check signed wrap 
-    //op->setHasNoSignedWrap(bo->hasNoSignedWrap()); 
-    //op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap()); 
-  } else { 
-    op3 = UnaryOperator::CreateFNeg(bo->getOperand(0), "", bo); 
-    op4 = UnaryOperator::CreateFNeg(bo->getOperand(1), "", bo); 
-    op = BinaryOperator::Create(Instruction::FAdd, op3, op4, "", bo); 
-    op3 = UnaryOperator::CreateFNeg(op, "", bo); 
-    bo->replaceAllUsesWith(op3); 
-  }   
+// Implementation of a = -(-b + (-c))
+void SubstitutionPass::addDoubleNeg(BinaryOperator *bo) {
+  BinaryOperator *op, *op2 = NULL;
+  UnaryOperator *op3, *op4;
+  if (bo->getOpcode() == Instruction::Add) {
+    op = BinaryOperator::CreateNeg(bo->getOperand(0), "", bo);
+    op2 = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo);
+    op = BinaryOperator::Create(Instruction::Add, op, op2, "", bo);
+    op = BinaryOperator::CreateNeg(op, "", bo);
+    bo->replaceAllUsesWith(op);
+    // Check signed wrap
+    //op->setHasNoSignedWrap(bo->hasNoSignedWrap());
+    //op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
+  } else {
+    op3 = UnaryOperator::CreateFNeg(bo->getOperand(0), "", bo);
+    op4 = UnaryOperator::CreateFNeg(bo->getOperand(1), "", bo);
+    op = BinaryOperator::Create(Instruction::FAdd, op3, op4, "", bo);
+    op3 = UnaryOperator::CreateFNeg(op, "", bo);
+    bo->replaceAllUsesWith(op3);
+  }
 }
 
 // Implementation of  r = rand (); a = b + r; a = a + c; a = a - r
@@ -229,20 +230,20 @@ void SubstitutionPass::addRand2(BinaryOperator *bo) {
   } */
 }
 
-// Implementation of a = b + (-c) 
-void SubstitutionPass::subNeg(BinaryOperator *bo) { 
-  BinaryOperator *op = NULL;   
-  if (bo->getOpcode() == Instruction::Sub) { 
-    op = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo); 
-    op = BinaryOperator::Create(Instruction::Add, bo->getOperand(0), op, "", bo); 
-    // Check signed wrap 
-    //op->setHasNoSignedWrap(bo->hasNoSignedWrap()); 
-    //op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap()); 
-  } else { 
-    auto op1 = UnaryOperator::CreateFNeg(bo->getOperand(1), "", bo); 
-    op = BinaryOperator::Create(Instruction::FAdd, bo->getOperand(0), op1, "", bo); 
-  } 
-  bo->replaceAllUsesWith(op); 
+// Implementation of a = b + (-c)
+void SubstitutionPass::subNeg(BinaryOperator *bo) {
+  BinaryOperator *op = NULL;
+  if (bo->getOpcode() == Instruction::Sub) {
+    op = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo);
+    op = BinaryOperator::Create(Instruction::Add, bo->getOperand(0), op, "", bo);
+    // Check signed wrap
+    //op->setHasNoSignedWrap(bo->hasNoSignedWrap());
+    //op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
+  } else {
+    auto op1 = UnaryOperator::CreateFNeg(bo->getOperand(1), "", bo);
+    op = BinaryOperator::Create(Instruction::FAdd, bo->getOperand(0), op1, "", bo);
+  }
+  bo->replaceAllUsesWith(op);
 }
 
 // Implementation of  r = rand (); a = b + r; a = a - c; a = a - r
@@ -458,7 +459,7 @@ void SubstitutionPass::xorSubstitution(BinaryOperator *bo) {
   bo->replaceAllUsesWith(op);
 }
 
-// implementation of a = a ^ b <=> (a ^ r) ^ (b ^ r) <=> 
+// implementation of a = a ^ b <=> (a ^ r) ^ (b ^ r) <=>
 // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
 // note : r is a random number
 void SubstitutionPass::xorSubstitutionRand(BinaryOperator *bo) {
