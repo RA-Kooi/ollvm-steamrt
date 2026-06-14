@@ -1,4 +1,5 @@
-//===- BogusControlFlow.h - BogusControlFlow Obfuscation pass-------------------------===//
+//===- BogusControlFlow.h - BogusControlFlow Obfuscation
+//pass-------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -123,42 +124,54 @@
 
 STATISTIC(NumFunction, "a. Number of functions in this module");
 STATISTIC(NumTimesOnFunctions, "b. Number of times we run on each function");
-STATISTIC(InitNumBasicBlocks, "c. Initial number of basic blocks in this module");
+STATISTIC(InitNumBasicBlocks,
+          "c. Initial number of basic blocks in this module");
 STATISTIC(NumModifiedBasicBlocks, "d. Number of modified basic blocks");
-STATISTIC(NumAddedBasicBlocks, "e. Number of added basic blocks in this module");
-STATISTIC(FinalNumBasicBlocks, "f. Final number of basic blocks in this module");
+STATISTIC(NumAddedBasicBlocks,
+          "e. Number of added basic blocks in this module");
+STATISTIC(FinalNumBasicBlocks,
+          "f. Final number of basic blocks in this module");
 
 // Options for the pass
 const int defaultObfRate = 70, defaultObfTime = 2;
 
-static cl::opt<int> ObfProbRate("bcf_prob", cl::desc("Choose the probability [%] each basic blocks will be obfuscated by the -bcf pass"), cl::value_desc("probability rate"), cl::init(defaultObfRate), cl::Optional);
+static cl::opt<int>
+    ObfProbRate("bcf_prob",
+                cl::desc("Choose the probability [%] each basic blocks will be "
+                         "obfuscated by the -bcf pass"),
+                cl::value_desc("probability rate"), cl::init(defaultObfRate),
+                cl::Optional);
 
-static cl::opt<int> ObfTimes("bcf_loop", cl::desc("Choose how many time the -bcf pass loop on a function"), cl::value_desc("number of times"), cl::init(defaultObfTime), cl::Optional);
+static cl::opt<int>
+    ObfTimes("bcf_loop",
+             cl::desc("Choose how many time the -bcf pass loop on a function"),
+             cl::value_desc("number of times"), cl::init(defaultObfTime),
+             cl::Optional);
 
+BasicBlock *createAlteredBasicBlock(BasicBlock *basicBlock,
+                                    const Twine &Name = "gen", Function *F = 0);
 
-BasicBlock *createAlteredBasicBlock(BasicBlock *basicBlock, const Twine &Name = "gen", Function *F = 0);
-
-PreservedAnalyses BogusControlFlowPass::run(Function& F, FunctionAnalysisManager& AM) {
-    // Check if the percentage is correct
-    if (ObfTimes <= 0){
-        errs() << "BogusControlFlow application number -bcf_loop=x must be x > 0";
-        return PreservedAnalyses::all();
-    }
-    // Check if the number of applications is correct
-    if (!((ObfProbRate > 0) && (ObfProbRate <= 100))) {
-      errs() << "BogusControlFlow application basic blocks percentage "
-                "-bcf_prob=x must be 0 < x <= 100";
-      return PreservedAnalyses::all();
-    }
-    // If fla annotations
-    if (toObfuscate(flag, &F, "bcf")){
-      bogus(F);
-      doF(*F.getParent(), F);
-      return PreservedAnalyses::none();
-    }
+PreservedAnalyses BogusControlFlowPass::run(Function &F,
+                                            FunctionAnalysisManager &AM) {
+  // Check if the percentage is correct
+  if (ObfTimes <= 0) {
+    errs() << "BogusControlFlow application number -bcf_loop=x must be x > 0";
     return PreservedAnalyses::all();
+  }
+  // Check if the number of applications is correct
+  if (!((ObfProbRate > 0) && (ObfProbRate <= 100))) {
+    errs() << "BogusControlFlow application basic blocks percentage "
+              "-bcf_prob=x must be 0 < x <= 100";
+    return PreservedAnalyses::all();
+  }
+  // If fla annotations
+  if (toObfuscate(flag, &F, "bcf")) {
+    bogus(F);
+    doF(*F.getParent(), F);
+    return PreservedAnalyses::none();
+  }
+  return PreservedAnalyses::all();
 }
-
 
 void BogusControlFlowPass::bogus(Function &F) {
   // For statistics and debug
@@ -289,8 +302,8 @@ void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
 
   // The always true condition. End of the first block
   Twine *var4 = new Twine("condition");
-  FCmpInst *condition =
-      new FCmpInst(InsertPosition(basicBlock), FCmpInst::FCMP_TRUE, LHS, RHS, *var4);
+  FCmpInst *condition = new FCmpInst(InsertPosition(basicBlock),
+                                     FCmpInst::FCMP_TRUE, LHS, RHS, *var4);
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Always true condition created\n");
 
   // Jump to the original basic block if the condition is true or
@@ -325,8 +338,8 @@ void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
   originalBB->getTerminator()->eraseFromParent();
   // We add at the end a new always true condition
   Twine *var6 = new Twine("condition2");
-  FCmpInst *condition2 =
-      new FCmpInst(InsertPosition(originalBB), CmpInst::FCMP_TRUE, LHS, RHS, *var6);
+  FCmpInst *condition2 = new FCmpInst(InsertPosition(originalBB),
+                                      CmpInst::FCMP_TRUE, LHS, RHS, *var6);
   BranchInst::Create(originalBBpart2, alteredBB, (Value *)condition2,
                      originalBB);
   DEBUG_WITH_TYPE("gen", errs()
@@ -676,6 +689,6 @@ bool BogusControlFlowPass::doF(Module &M, Function &F) {
  * @param flag
  * @return FunctionPass*
  */
-BogusControlFlowPass *llvm::createBogusControlFlow(bool flag){
-    return new BogusControlFlowPass(flag);
+BogusControlFlowPass *llvm::createBogusControlFlow(bool flag) {
+  return new BogusControlFlowPass(flag);
 }

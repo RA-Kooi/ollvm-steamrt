@@ -198,9 +198,9 @@ void llvm::fixStack(Function &F) {
   while (isa<AllocaInst>(I))
     ++I;
 
-  CastInst *AllocaInsertionPoint = new BitCastInst(
-      Constant::getNullValue(Type::getInt32Ty(F.getContext())),
-      Type::getInt32Ty(F.getContext()), "fix_stack_point", &*I);
+  CastInst *AllocaInsertionPoint =
+      new BitCastInst(Constant::getNullValue(Type::getInt32Ty(F.getContext())),
+                      Type::getInt32Ty(F.getContext()), "fix_stack_point", &*I);
 
   // Find the escaped instructions. But don't create stack slots for
   // allocas in entry block.
@@ -210,7 +210,7 @@ void llvm::fixStack(Function &F) {
       WorkList.push_front(&I);
 
   // Demote escaped instructions
-  //NumRegsDemoted += WorkList.size();
+  // NumRegsDemoted += WorkList.size();
   for (Instruction *I : WorkList)
     DemoteRegToStack(*I, false, AllocaInsertionPoint->getIterator());
 
@@ -222,7 +222,7 @@ void llvm::fixStack(Function &F) {
       WorkList.push_front(&Phi);
 
   // Demote phi nodes
-  //NumPhisDemoted += WorkList.size();
+  // NumPhisDemoted += WorkList.size();
   for (Instruction *I : WorkList)
     DemotePHIToStack(cast<PHINode>(I), AllocaInsertionPoint->getIterator());
 }

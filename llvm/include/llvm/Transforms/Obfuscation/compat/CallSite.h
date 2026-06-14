@@ -11,8 +11,9 @@
 //
 
 // Compatibility for Clang v10 and higher.
-// In Clang 11 the CallSite.h was removed, therefore we copied the Clang v10 version of the header into the TypeART
-// project, see https://github.com/llvm/llvm-project
+// In Clang 11 the CallSite.h was removed, therefore we copied the Clang v10
+// version of the header into the TypeART project, see
+// https://github.com/llvm/llvm-project
 
 #ifndef COMPAT_LLVM_IR_CALLSITE_H
 #define COMPAT_LLVM_IR_CALLSITE_H
@@ -27,7 +28,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-//#include "llvm/ADT/Optional.h"// Soule.llvm17.update: Legacy alias of llvm::Optional to std::optional
+// #include "llvm/ADT/Optional.h"// Soule.llvm17.update: Legacy alias of
+// llvm::Optional to std::optional
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Attributes.h"
@@ -51,103 +53,82 @@ namespace Intrinsic {
 typedef unsigned ID;
 }
 
-template <typename FunTy = const Function, typename BBTy = const BasicBlock, typename ValTy = const Value,
-          typename UserTy = const User, typename UseTy = const Use, typename InstrTy = const Instruction,
-          typename CallTy = const CallInst, typename InvokeTy = const InvokeInst, typename CallBrTy = const CallBrInst,
+template <typename FunTy = const Function, typename BBTy = const BasicBlock,
+          typename ValTy = const Value, typename UserTy = const User,
+          typename UseTy = const Use, typename InstrTy = const Instruction,
+          typename CallTy = const CallInst,
+          typename InvokeTy = const InvokeInst,
+          typename CallBrTy = const CallBrInst,
           typename IterTy = User::const_op_iterator>
 class CallSiteBase {
- protected:
-  PointerIntPair<InstrTy*, 2, int> I;
+protected:
+  PointerIntPair<InstrTy *, 2, int> I;
 
   CallSiteBase() = default;
-  CallSiteBase(CallTy* CI) : I(CI, 1) {
-    assert(CI);
-  }
-  CallSiteBase(InvokeTy* II) : I(II, 0) {
-    assert(II);
-  }
-  CallSiteBase(CallBrTy* CBI) : I(CBI, 2) {
-    assert(CBI);
-  }
-  explicit CallSiteBase(ValTy* II) {
-    *this = get(II);
-  }
+  CallSiteBase(CallTy *CI) : I(CI, 1) { assert(CI); }
+  CallSiteBase(InvokeTy *II) : I(II, 0) { assert(II); }
+  CallSiteBase(CallBrTy *CBI) : I(CBI, 2) { assert(CBI); }
+  explicit CallSiteBase(ValTy *II) { *this = get(II); }
 
- private:
+private:
   /// This static method is like a constructor. It will create an appropriate
   /// call site for a Call, Invoke or CallBr instruction, but it can also create
   /// a null initialized CallSiteBase object for something which is NOT a call
   /// site.
-  static CallSiteBase get(ValTy* V) {
-    if (InstrTy* II = dyn_cast<InstrTy>(V)) {
+  static CallSiteBase get(ValTy *V) {
+    if (InstrTy *II = dyn_cast<InstrTy>(V)) {
       if (II->getOpcode() == Instruction::Call)
-        return CallSiteBase(static_cast<CallTy*>(II));
+        return CallSiteBase(static_cast<CallTy *>(II));
       if (II->getOpcode() == Instruction::Invoke)
-        return CallSiteBase(static_cast<InvokeTy*>(II));
+        return CallSiteBase(static_cast<InvokeTy *>(II));
       if (II->getOpcode() == Instruction::CallBr)
-        return CallSiteBase(static_cast<CallBrTy*>(II));
+        return CallSiteBase(static_cast<CallBrTy *>(II));
     }
     return CallSiteBase();
   }
 
- public:
+public:
   /// Return true if a CallInst is enclosed.
-  bool isCall() const {
-    return I.getInt() == 1;
-  }
+  bool isCall() const { return I.getInt() == 1; }
 
   /// Return true if a InvokeInst is enclosed. !I.getInt() may also signify a
   /// NULL instruction pointer, so check that.
-  bool isInvoke() const {
-    return getInstruction() && I.getInt() == 0;
-  }
+  bool isInvoke() const { return getInstruction() && I.getInt() == 0; }
 
   /// Return true if a CallBrInst is enclosed.
-  bool isCallBr() const {
-    return I.getInt() == 2;
-  }
+  bool isCallBr() const { return I.getInt() == 2; }
 
-  InstrTy* getInstruction() const {
-    return I.getPointer();
-  }
-  InstrTy* operator->() const {
-    return I.getPointer();
-  }
-  explicit operator bool() const {
-    return I.getPointer();
-  }
+  InstrTy *getInstruction() const { return I.getPointer(); }
+  InstrTy *operator->() const { return I.getPointer(); }
+  explicit operator bool() const { return I.getPointer(); }
 
   /// Get the basic block containing the call site.
-  BBTy* getParent() const {
-    return getInstruction()->getParent();
-  }
+  BBTy *getParent() const { return getInstruction()->getParent(); }
 
   /// Return the pointer to function that is being called.
-  ValTy* getCalledValue() const {
+  ValTy *getCalledValue() const {
     assert(getInstruction() && "Not a call, invoke or callbr instruction!");
     return *getCallee();
   }
 
   /// Return the function being called if this is a direct call, otherwise
   /// return null (if it's an indirect call).
-  FunTy* getCalledFunction() const {
-    return dyn_cast<FunTy>(getCalledValue());
-  }
+  FunTy *getCalledFunction() const { return dyn_cast<FunTy>(getCalledValue()); }
 
   /// Return true if the callsite is an indirect call.
   bool isIndirectCall() const {
-    const Value* V = getCalledValue();
+    const Value *V = getCalledValue();
     if (!V)
       return false;
     if (isa<FunTy>(V) || isa<Constant>(V))
       return false;
-    if (const CallBase* CB = dyn_cast<CallBase>(getInstruction()))
+    if (const CallBase *CB = dyn_cast<CallBase>(getInstruction()))
       if (CB->isInlineAsm())
         return false;
     return true;
   }
 
-// Soule
+  // Soule
   /* /// Set the callee to the specified value.  Unlike the function of the same
   /// name on CallBase, does not modify the type!
   void setCalledFunction(Value* V) {
@@ -160,7 +141,8 @@ class CallSiteBase {
     };
     assert(getInstruction() && "Not a call, callbr, or invoke instruction!");
 
-    // assert(elem_type() == cast<CallBase>(getInstruction())->getFunctionType() &&
+    // assert(elem_type() == cast<CallBase>(getInstruction())->getFunctionType()
+&&
     //        "New callee type does not match FunctionType on call");
     *getCallee() = V;
   }*/
@@ -169,7 +151,7 @@ class CallSiteBase {
   /// or Intrinsic::not_intrinsic if the called function is not an
   /// intrinsic, or if this CallSite is an indirect call.
   Intrinsic::ID getIntrinsicID() const {
-    if (auto* F = getCalledFunction())
+    if (auto *F = getCalledFunction())
       return F->getIntrinsicID();
     // Don't use Intrinsic::not_intrinsic, as it will require pulling
     // Intrinsics.h into every header that uses CallSite.
@@ -182,9 +164,7 @@ class CallSiteBase {
   }
 
   /// Determine whether this Use is the callee operand's Use.
-  bool isCallee(const Use* U) const {
-    return getCallee() == U;
-  }
+  bool isCallee(const Use *U) const { return getCallee() == U; }
 
   /// Determine whether the passed iterator points to an argument operand.
   bool isArgOperand(Value::const_user_iterator UI) const {
@@ -192,7 +172,7 @@ class CallSiteBase {
   }
 
   /// Determine whether the passed use points to an argument operand.
-  bool isArgOperand(const Use* U) const {
+  bool isArgOperand(const Use *U) const {
     assert(getInstruction() == U->getUser());
     return arg_begin() <= U && U < arg_end();
   }
@@ -203,12 +183,13 @@ class CallSiteBase {
   }
 
   /// Determine whether the passed use points to a bundle operand.
-  bool isBundleOperand(const Use* U) const {
+  bool isBundleOperand(const Use *U) const {
     assert(getInstruction() == U->getUser());
     if (!hasOperandBundles())
       return false;
     unsigned OperandNo = U - (*this)->op_begin();
-    return getBundleOperandsStartIndex() <= OperandNo && OperandNo < getBundleOperandsEndIndex();
+    return getBundleOperandsStartIndex() <= OperandNo &&
+           OperandNo < getBundleOperandsEndIndex();
   }
 
   /// Determine whether the passed iterator points to a data operand.
@@ -217,16 +198,16 @@ class CallSiteBase {
   }
 
   /// Determine whether the passed use points to a data operand.
-  bool isDataOperand(const Use* U) const {
+  bool isDataOperand(const Use *U) const {
     return data_operands_begin() <= U && U < data_operands_end();
   }
 
-  ValTy* getArgument(unsigned ArgNo) const {
+  ValTy *getArgument(unsigned ArgNo) const {
     assert(arg_begin() + ArgNo < arg_end() && "Argument # out of range!");
     return *(arg_begin() + ArgNo);
   }
 
-  void setArgument(unsigned ArgNo, Value* newVal) {
+  void setArgument(unsigned ArgNo, Value *newVal) {
     assert(getInstruction() && "Not a call, invoke or callbr instruction!");
     assert(arg_begin() + ArgNo < arg_end() && "Argument # out of range!");
     getInstruction()->setOperand(ArgNo, newVal);
@@ -240,7 +221,7 @@ class CallSiteBase {
 
   /// Given a use for an argument, get the argument number that corresponds to
   /// it.
-  unsigned getArgumentNo(const Use* U) const {
+  unsigned getArgumentNo(const Use *U) const {
     assert(getInstruction() && "Not a call, invoke or callbr instruction!");
     assert(isArgOperand(U) && "Argument # out of range!");
     return U - arg_begin();
@@ -253,12 +234,8 @@ class CallSiteBase {
   iterator_range<IterTy> args() const {
     return make_range(arg_begin(), arg_end());
   }
-  bool arg_empty() const {
-    return arg_end() == arg_begin();
-  }
-  unsigned arg_size() const {
-    return unsigned(arg_end() - arg_begin());
-  }
+  bool arg_empty() const { return arg_end() == arg_begin(); }
+  unsigned arg_size() const { return unsigned(arg_end() - arg_begin()); }
 
   /// Given a value use iterator, return the data operand corresponding to it.
   /// Iterator must actually correspond to a data operand.
@@ -268,7 +245,7 @@ class CallSiteBase {
 
   /// Given a use for a data operand, get the data operand number that
   /// corresponds to it.
-  unsigned getDataOperandNo(const Use* U) const {
+  unsigned getDataOperandNo(const Use *U) const {
     assert(getInstruction() && "Not a call, invoke or callbr instruction!");
     assert(isDataOperand(U) && "Data operand # out of range!");
     return U - data_operands_begin();
@@ -304,14 +281,10 @@ class CallSiteBase {
   }
 
   /// Return the type of the instruction that generated this call site.
-  Type* getType() const {
-    return (*this)->getType();
-  }
+  Type *getType() const { return (*this)->getType(); }
 
   /// Return the caller function for this call site.
-  FunTy* getCaller() const {
-    return (*this)->getParent()->getParent();
-  }
+  FunTy *getCaller() const { return (*this)->getParent()->getParent(); }
 
   /// Tests if this call site must be tail call optimized. Only a CallInst can
   /// be tail call optimized.
@@ -324,35 +297,34 @@ class CallSiteBase {
     return isCall() && cast<CallInst>(getInstruction())->isTailCall();
   }
 
-#define CALLSITE_DELEGATE_GETTER(METHOD)             \
-  InstrTy* II = getInstruction();                    \
-  return isCall()     ? cast<CallInst>(II)->METHOD   \
-         : isCallBr() ? cast<CallBrInst>(II)->METHOD \
+#define CALLSITE_DELEGATE_GETTER(METHOD)                                       \
+  InstrTy *II = getInstruction();                                              \
+  return isCall()     ? cast<CallInst>(II)->METHOD                             \
+         : isCallBr() ? cast<CallBrInst>(II)->METHOD                           \
                       : cast<InvokeInst>(II)->METHOD
 
-#define CALLSITE_DELEGATE_SETTER(METHOD) \
-  InstrTy* II = getInstruction();        \
-  if (isCall())                          \
-    cast<CallInst>(II)->METHOD;          \
-  else if (isCallBr())                   \
-    cast<CallBrInst>(II)->METHOD;        \
-  else                                   \
+#define CALLSITE_DELEGATE_SETTER(METHOD)                                       \
+  InstrTy *II = getInstruction();                                              \
+  if (isCall())                                                                \
+    cast<CallInst>(II)->METHOD;                                                \
+  else if (isCallBr())                                                         \
+    cast<CallBrInst>(II)->METHOD;                                              \
+  else                                                                         \
     cast<InvokeInst>(II)->METHOD
 
-
   unsigned getNumArgOperands() const {
-    #if LLVM_VERSION_MAJOR >= 14
+#if LLVM_VERSION_MAJOR >= 14
     CALLSITE_DELEGATE_GETTER(arg_size());
-    #else
+#else
     CALLSITE_DELEGATE_GETTER(getNumArgOperands());
-    #endif
+#endif
   }
 
-  ValTy* getArgOperand(unsigned i) const {
+  ValTy *getArgOperand(unsigned i) const {
     CALLSITE_DELEGATE_GETTER(getArgOperand(i));
   }
 
-  ValTy* getReturnedArgOperand() const {
+  ValTy *getReturnedArgOperand() const {
     CALLSITE_DELEGATE_GETTER(getReturnedArgOperand());
   }
 
@@ -369,11 +341,11 @@ class CallSiteBase {
     CALLSITE_DELEGATE_SETTER(setCallingConv(CC));
   }
 
-  FunctionType* getFunctionType() const {
+  FunctionType *getFunctionType() const {
     CALLSITE_DELEGATE_GETTER(getFunctionType());
   }
 
-  void mutateFunctionType(FunctionType* Ty) const {
+  void mutateFunctionType(FunctionType *Ty) const {
     CALLSITE_DELEGATE_SETTER(mutateFunctionType(Ty));
   }
 
@@ -460,7 +432,7 @@ class CallSiteBase {
   }
 
   /// Extract the byval type for a call or parameter (nullptr=unknown).
-  Type* getParamByValType(unsigned ArgNo) const {
+  Type *getParamByValType(unsigned ArgNo) const {
     CALLSITE_DELEGATE_GETTER(getParamByValType(ArgNo));
   }
 
@@ -482,19 +454,13 @@ class CallSiteBase {
   }
 
   /// Return true if the call should not be treated as a call to a builtin.
-  bool isNoBuiltin() const {
-    CALLSITE_DELEGATE_GETTER(isNoBuiltin());
-  }
+  bool isNoBuiltin() const { CALLSITE_DELEGATE_GETTER(isNoBuiltin()); }
 
   /// Return true if the call requires strict floating point semantics.
-  bool isStrictFP() const {
-    CALLSITE_DELEGATE_GETTER(isStrictFP());
-  }
+  bool isStrictFP() const { CALLSITE_DELEGATE_GETTER(isStrictFP()); }
 
   /// Return true if the call should not be inlined.
-  bool isNoInline() const {
-    CALLSITE_DELEGATE_GETTER(isNoInline());
-  }
+  bool isNoInline() const { CALLSITE_DELEGATE_GETTER(isNoInline()); }
   void setIsNoInline(bool Value = true) {
     CALLSITE_DELEGATE_SETTER(setIsNoInline(Value));
   }
@@ -508,12 +474,8 @@ class CallSiteBase {
   }
 
   /// Determine if the call does not access or only reads memory.
-  bool onlyReadsMemory() const {
-    CALLSITE_DELEGATE_GETTER(onlyReadsMemory());
-  }
-  void setOnlyReadsMemory() {
-    CALLSITE_DELEGATE_SETTER(setOnlyReadsMemory());
-  }
+  bool onlyReadsMemory() const { CALLSITE_DELEGATE_GETTER(onlyReadsMemory()); }
+  void setOnlyReadsMemory() { CALLSITE_DELEGATE_SETTER(setOnlyReadsMemory()); }
 
   /// Determine if the call does not access or only writes memory.
   bool doesNotReadMemory() const {
@@ -551,39 +513,21 @@ class CallSiteBase {
   }
 
   /// Determine if the call cannot return.
-  bool doesNotReturn() const {
-    CALLSITE_DELEGATE_GETTER(doesNotReturn());
-  }
-  void setDoesNotReturn() {
-    CALLSITE_DELEGATE_SETTER(setDoesNotReturn());
-  }
+  bool doesNotReturn() const { CALLSITE_DELEGATE_GETTER(doesNotReturn()); }
+  void setDoesNotReturn() { CALLSITE_DELEGATE_SETTER(setDoesNotReturn()); }
 
   /// Determine if the call cannot unwind.
-  bool doesNotThrow() const {
-    CALLSITE_DELEGATE_GETTER(doesNotThrow());
-  }
-  void setDoesNotThrow() {
-    CALLSITE_DELEGATE_SETTER(setDoesNotThrow());
-  }
+  bool doesNotThrow() const { CALLSITE_DELEGATE_GETTER(doesNotThrow()); }
+  void setDoesNotThrow() { CALLSITE_DELEGATE_SETTER(setDoesNotThrow()); }
 
   /// Determine if the call can be duplicated.
-  bool cannotDuplicate() const {
-    CALLSITE_DELEGATE_GETTER(cannotDuplicate());
-  }
-  void setCannotDuplicate() {
-    CALLSITE_DELEGATE_SETTER(setCannotDuplicate());
-  }
+  bool cannotDuplicate() const { CALLSITE_DELEGATE_GETTER(cannotDuplicate()); }
+  void setCannotDuplicate() { CALLSITE_DELEGATE_SETTER(setCannotDuplicate()); }
 
   /// Determine if the call is convergent.
-  bool isConvergent() const {
-    CALLSITE_DELEGATE_GETTER(isConvergent());
-  }
-  void setConvergent() {
-    CALLSITE_DELEGATE_SETTER(setConvergent());
-  }
-  void setNotConvergent() {
-    CALLSITE_DELEGATE_SETTER(setNotConvergent());
-  }
+  bool isConvergent() const { CALLSITE_DELEGATE_GETTER(isConvergent()); }
+  void setConvergent() { CALLSITE_DELEGATE_SETTER(setConvergent()); }
+  void setNotConvergent() { CALLSITE_DELEGATE_SETTER(setNotConvergent()); }
 
   unsigned getNumOperandBundles() const {
     CALLSITE_DELEGATE_GETTER(getNumOperandBundles());
@@ -609,11 +553,13 @@ class CallSiteBase {
     CALLSITE_DELEGATE_GETTER(getOperandBundleAt(Index));
   }
 
-  std::optional<OperandBundleUse> getOperandBundle(StringRef Name) const { // Soule.llvm17.update
+  std::optional<OperandBundleUse>
+  getOperandBundle(StringRef Name) const { // Soule.llvm17.update
     CALLSITE_DELEGATE_GETTER(getOperandBundle(Name));
   }
 
-  std::optional<OperandBundleUse> getOperandBundle(uint32_t ID) const { // Soule.llvm17.update
+  std::optional<OperandBundleUse>
+  getOperandBundle(uint32_t ID) const { // Soule.llvm17.update
     CALLSITE_DELEGATE_GETTER(getOperandBundle(ID));
   }
 
@@ -625,18 +571,14 @@ class CallSiteBase {
     CALLSITE_DELEGATE_GETTER(isBundleOperand(Idx));
   }
 
-  IterTy arg_begin() const {
-    CALLSITE_DELEGATE_GETTER(arg_begin());
-  }
+  IterTy arg_begin() const { CALLSITE_DELEGATE_GETTER(arg_begin()); }
 
-  IterTy arg_end() const {
-    CALLSITE_DELEGATE_GETTER(arg_end());
-  }
+  IterTy arg_end() const { CALLSITE_DELEGATE_GETTER(arg_end()); }
 
 #undef CALLSITE_DELEGATE_GETTER
 #undef CALLSITE_DELEGATE_SETTER
 
-  void getOperandBundlesAsDefs(SmallVectorImpl<OperandBundleDef>& Defs) const {
+  void getOperandBundlesAsDefs(SmallVectorImpl<OperandBundleDef> &Defs) const {
     // Since this is actually a getter that "looks like" a setter, don't use the
     // above macros to avoid confusion.
     cast<CallBase>(getInstruction())->getOperandBundlesAsDefs(Defs);
@@ -659,7 +601,8 @@ class CallSiteBase {
 
   /// Determine whether this argument is passed by value or in an alloca.
   bool isByValOrInAllocaArgument(unsigned ArgNo) const {
-    return paramHasAttr(ArgNo, Attribute::ByVal) || paramHasAttr(ArgNo, Attribute::InAlloca);
+    return paramHasAttr(ArgNo, Attribute::ByVal) ||
+           paramHasAttr(ArgNo, Attribute::InAlloca);
   }
 
   /// Determine if there are is an inalloca argument. Only the last argument can
@@ -689,7 +632,8 @@ class CallSiteBase {
     if (hasRetAttr(Attribute::NonNull))
       return true;
     else if (getDereferenceableBytes(AttributeList::ReturnIndex) > 0 &&
-             !NullPointerIsDefined(getCaller(), getType()->getPointerAddressSpace()))
+             !NullPointerIsDefined(getCaller(),
+                                   getType()->getPointerAddressSpace()))
       return true;
 
     return false;
@@ -697,47 +641,39 @@ class CallSiteBase {
 
   /// Returns true if this CallSite passes the given Value* as an argument to
   /// the called function.
-  bool hasArgument(const Value* Arg) const {
-    for (arg_iterator AI = this->arg_begin(), E = this->arg_end(); AI != E; ++AI)
+  bool hasArgument(const Value *Arg) const {
+    for (arg_iterator AI = this->arg_begin(), E = this->arg_end(); AI != E;
+         ++AI)
       if (AI->get() == Arg)
         return true;
     return false;
   }
 
- private:
+private:
   IterTy getCallee() const {
     return cast<CallBase>(getInstruction())->op_end() - 1;
   }
 };
 
-class CallSite : public CallSiteBase<Function, BasicBlock, Value, User, Use, Instruction, CallInst, InvokeInst,
-                                     CallBrInst, User::op_iterator> {
- public:
+class CallSite
+    : public CallSiteBase<Function, BasicBlock, Value, User, Use, Instruction,
+                          CallInst, InvokeInst, CallBrInst, User::op_iterator> {
+public:
   CallSite() = default;
-  CallSite(CallSiteBase B) : CallSiteBase(B) {
-  }
-  CallSite(CallInst* CI) : CallSiteBase(CI) {
-  }
-  CallSite(InvokeInst* II) : CallSiteBase(II) {
-  }
-  CallSite(CallBrInst* CBI) : CallSiteBase(CBI) {
-  }
-  explicit CallSite(Instruction* II) : CallSiteBase(II) {
-  }
-  explicit CallSite(Value* V) : CallSiteBase(V) {
-  }
+  CallSite(CallSiteBase B) : CallSiteBase(B) {}
+  CallSite(CallInst *CI) : CallSiteBase(CI) {}
+  CallSite(InvokeInst *II) : CallSiteBase(II) {}
+  CallSite(CallBrInst *CBI) : CallSiteBase(CBI) {}
+  explicit CallSite(Instruction *II) : CallSiteBase(II) {}
+  explicit CallSite(Value *V) : CallSiteBase(V) {}
 
-  bool operator==(const CallSite& CS) const {
-    return I == CS.I;
-  }
-  bool operator!=(const CallSite& CS) const {
-    return I != CS.I;
-  }
-  bool operator<(const CallSite& CS) const {
+  bool operator==(const CallSite &CS) const { return I == CS.I; }
+  bool operator!=(const CallSite &CS) const { return I != CS.I; }
+  bool operator<(const CallSite &CS) const {
     return getInstruction() < CS.getInstruction();
   }
 
- private:
+private:
   friend struct DenseMapInfo<CallSite>;
 
   User::op_iterator getCallee() const;
@@ -745,23 +681,17 @@ class CallSite : public CallSiteBase<Function, BasicBlock, Value, User, Use, Ins
 
 /// Establish a view to a call site for examination.
 class ImmutableCallSite : public CallSiteBase<> {
- public:
+public:
   ImmutableCallSite() = default;
-  ImmutableCallSite(const CallInst* CI) : CallSiteBase(CI) {
-  }
-  ImmutableCallSite(const InvokeInst* II) : CallSiteBase(II) {
-  }
-  ImmutableCallSite(const CallBrInst* CBI) : CallSiteBase(CBI) {
-  }
-  explicit ImmutableCallSite(const Instruction* II) : CallSiteBase(II) {
-  }
-  explicit ImmutableCallSite(const Value* V) : CallSiteBase(V) {
-  }
-  ImmutableCallSite(CallSite CS) : CallSiteBase(CS.getInstruction()) {
-  }
+  ImmutableCallSite(const CallInst *CI) : CallSiteBase(CI) {}
+  ImmutableCallSite(const InvokeInst *II) : CallSiteBase(II) {}
+  ImmutableCallSite(const CallBrInst *CBI) : CallSiteBase(CBI) {}
+  explicit ImmutableCallSite(const Instruction *II) : CallSiteBase(II) {}
+  explicit ImmutableCallSite(const Value *V) : CallSiteBase(V) {}
+  ImmutableCallSite(CallSite CS) : CallSiteBase(CS.getInstruction()) {}
 };
 
-}  // namespace llvm
+} // namespace llvm
 #pragma GCC diagnostic pop
 
-#endif  // LLVM_IR_CALLSITE_H
+#endif // LLVM_IR_CALLSITE_H
