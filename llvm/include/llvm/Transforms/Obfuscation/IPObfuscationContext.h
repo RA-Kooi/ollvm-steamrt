@@ -1,12 +1,14 @@
 #ifndef OBFUSCATION_IPOBFUSCATIONCONTEXT_H
 #define OBFUSCATION_IPOBFUSCATIONCONTEXT_H
 
-#include "compat/CallSite.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+
 #include <map>
 #include <set>
+#include <vector>
 
 // Namespace
 namespace llvm {

@@ -1,13 +1,16 @@
 #include "llvm/Transforms/Obfuscation/Flattening.h"
 
+#include "llvm/ADT/Statistic.h"
+#include "llvm/IR//Constants.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
-#include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 
-using namespace llvm;
-
 #define DEBUG_TYPE "flattening"
+
+using namespace llvm;
 
 STATISTIC(Flattened, "Functions flattened");
 

@@ -4,36 +4,22 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/SHA1.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
-
 #include "CryptoUtils.h"
-#include "Utils.h"
 
-#include <algorithm>
-#include <iomanip>
-#include <iostream>
 #include <map>
 #include <set>
-#include <sstream>
 #include <vector>
 
 #include "ObfuscationOptions.h"
-
-using namespace std;
 
 namespace llvm {
 struct EncryptedGV {
@@ -78,7 +64,7 @@ public:
   GlobalVariable *EncryptedStringTable;
   std::set<GlobalVariable *> MaybeDeadGlobalVars;
 
-  map<Function * /*Function*/, GlobalVariable * /*Decryption Status*/>
+  std::map<Function * /*Function*/, GlobalVariable * /*Decryption Status*/>
       encstatus;
 
   StringEncryptionPass(bool flag) {

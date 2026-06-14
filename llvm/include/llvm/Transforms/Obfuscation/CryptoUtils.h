@@ -19,7 +19,6 @@
 #include "llvm/Support/ManagedStatic.h"
 
 #include <cstdint>
-#include <cstdio>
 #include <string>
 #include <unordered_map>
 

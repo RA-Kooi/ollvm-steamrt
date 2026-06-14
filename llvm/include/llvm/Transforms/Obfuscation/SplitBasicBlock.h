@@ -1,20 +1,11 @@
 #ifndef LLVM_SPLIT_BASIC_BLOCK_H
 #define LLVM_SPLIT_BASIC_BLOCK_H
 
-#include "llvm/ADT/Statistic.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
-
-#include <vector>
 
 namespace llvm {
 class SplitBasicBlockPass : public PassInfoMixin<SplitBasicBlockPass> {

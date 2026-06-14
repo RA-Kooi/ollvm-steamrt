@@ -1,7 +1,10 @@
 #include "llvm/Transforms/Obfuscation/IndirectCall.h"
 
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Obfuscation/compat/CallSite.h"
+
 using namespace llvm;
-using std::vector;
 
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
