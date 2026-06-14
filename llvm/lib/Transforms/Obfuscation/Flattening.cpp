@@ -1,24 +1,22 @@
 #include "llvm/Transforms/Obfuscation/Flattening.h"
+
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 
-// namespace
 using namespace llvm;
-using std::vector;
 
-#define DEBUG_TYPE "flattening" // 调试标识
-// Stats
+#define DEBUG_TYPE "flattening"
+
 STATISTIC(Flattened, "Functions flattened");
 
 PreservedAnalyses FlatteningPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
-  Function *tmp = &F; // 传入的Function
-  // 判断是否需要开启控制流平坦化
+  Function *tmp = &F;
   if (toObfuscate(flag, tmp, "fla")) {
     INIT_CONTEXT(F);
-    // outs()<<"[Soule] debug. "<< F.getName()<<" \n";
+
     if (flatten(tmp)) {
       ++Flattened;
     }
@@ -35,9 +33,7 @@ bool FlatteningPass::flatten(Function *f) {
   AllocaInst *switchVar, *switchVarAddr;
   const DataLayout &DL = f->getParent()->getDataLayout();
 
-  // SCRAMBLER
   std::unordered_map<uint32_t, uint32_t> scrambling_key;
-  // END OF SCRAMBLER
 
   FunctionAnalysisManager FAM;
   LowerSwitchPass switchPass;
@@ -48,6 +44,7 @@ bool FlatteningPass::flatten(Function *f) {
       errs() << f->getName()
              << " Contains Exception Handing Instructions and is unsupported "
                 "for flattening in the open-source version of Hikari.\n";
+
       return false;
     }
     if (!isa<BranchInst>(BB.getTerminator()) &&
@@ -214,9 +211,8 @@ bool FlatteningPass::flatten(Function *f) {
       continue;
     }
   }
-  errs() << "Fixing Stack\n";
+
   fixStack(*f);
-  errs() << "Fixed Stack\n";
 
   return true;
 }

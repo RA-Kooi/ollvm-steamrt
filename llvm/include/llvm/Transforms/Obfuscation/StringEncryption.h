@@ -1,6 +1,6 @@
 #ifndef LLVM_STRING_ENCRYPTION_H
 #define LLVM_STRING_ENCRYPTION_H
-// LLVM libs
+
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
@@ -15,15 +15,14 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
-// #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
-// User libs
+
 #include "CryptoUtils.h"
 #include "Utils.h"
-// System libs
+
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -35,6 +34,7 @@
 #include "ObfuscationOptions.h"
 
 using namespace std;
+
 namespace llvm {
 struct EncryptedGV {
   GlobalVariable *GV;
@@ -80,30 +80,40 @@ public:
 
   map<Function * /*Function*/, GlobalVariable * /*Decryption Status*/>
       encstatus;
+
   StringEncryptionPass(bool flag) {
     this->flag = flag;
     Options = new ObfuscationOptions;
     // EncryptedStringTable = new GlobalVariable;
   }
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM); // Pass实现函数
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
   bool do_StrEnc(Module &M, ModuleAnalysisManager &AM);
   void collectConstantStringUser(GlobalVariable *CString,
                                  std::set<GlobalVariable *> &Users);
+
   bool isValidToEncrypt(GlobalVariable *GV);
   bool processConstantStringUse(Function *F);
   void deleteUnusedGlobalVariable();
   Function *buildDecryptFunction(Module *M, const CSPEntry *Entry);
   Function *buildInitFunction(Module *M, const CSUser *User);
+
   void getRandomBytes(std::vector<uint8_t> &Bytes, uint32_t MinSize,
                       uint32_t MaxSize);
+
   void lowerGlobalConstant(Constant *CV, IRBuilder<> &IRB, Value *Ptr,
                            Type *Ty);
+
   void lowerGlobalConstantStruct(ConstantStruct *CS, IRBuilder<> &IRB,
                                  Value *Ptr, Type *Ty);
+
   void lowerGlobalConstantArray(ConstantArray *CA, IRBuilder<> &IRB, Value *Ptr,
                                 Type *Ty);
-  static bool isRequired() { return true; } // 直接返回true即可
+
+  static bool isRequired() { return true; }
 };
-StringEncryptionPass *createStringEncryption(bool flag); // 创建字符串加密
+
+StringEncryptionPass *createStringEncryption(bool flag);
 } // namespace llvm
+
 #endif

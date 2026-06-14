@@ -10,7 +10,6 @@
 using namespace llvm;
 
 namespace llvm {
-
 void ObfuscationOptions::init() {
   EnableIndirectBr = false;
   EnableIndirectCall = false;

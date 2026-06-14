@@ -1,7 +1,9 @@
 #ifndef OBFUSCATION_OBFUSCATIONOPTIONS_H
 #define OBFUSCATION_OBFUSCATIONOPTIONS_H
-#include <llvm/Support/YAMLParser.h>
+
+#include "llvm/Support/YAMLParser.h"
 #include <set>
+
 namespace llvm {
 struct ObfuscationOptions {
   explicit ObfuscationOptions(const Twine &FileName);
@@ -22,5 +24,6 @@ private:
   bool parseOptions(const Twine &FileName);
   std::set<std::string> FunctionFilter;
 };
+
 } // namespace llvm
 #endif

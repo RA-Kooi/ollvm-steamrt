@@ -26,7 +26,6 @@ static cl::opt<int>
              cl::desc("Choose how many time the -sub pass loops on a function"),
              cl::value_desc("number of times"), cl::init(1), cl::Optional);
 
-// Stats
 STATISTIC(Add, "Add substitued");
 STATISTIC(Sub, "Sub substitued");
 // STATISTIC(Mul,  "Mul substitued");

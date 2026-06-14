@@ -1,5 +1,5 @@
 //===- BogusControlFlow.h - BogusControlFlow Obfuscation
-//pass-------------------------===//
+// pass-------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -124,11 +124,15 @@
 
 STATISTIC(NumFunction, "a. Number of functions in this module");
 STATISTIC(NumTimesOnFunctions, "b. Number of times we run on each function");
+
 STATISTIC(InitNumBasicBlocks,
           "c. Initial number of basic blocks in this module");
+
 STATISTIC(NumModifiedBasicBlocks, "d. Number of modified basic blocks");
+
 STATISTIC(NumAddedBasicBlocks,
           "e. Number of added basic blocks in this module");
+
 STATISTIC(FinalNumBasicBlocks,
           "f. Final number of basic blocks in this module");
 
@@ -683,12 +687,6 @@ bool BogusControlFlowPass::doF(Module &M, Function &F) {
   return true;
 }
 
-/**
- * @brief 便于调用虚假控制流
- *
- * @param flag
- * @return FunctionPass*
- */
 BogusControlFlowPass *llvm::createBogusControlFlow(bool flag) {
   return new BogusControlFlowPass(flag);
 }

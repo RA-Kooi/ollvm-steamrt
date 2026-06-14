@@ -3,16 +3,8 @@
 using namespace llvm;
 using std::vector;
 
-/**
- * @brief
- *
- * @param F
- * @param AM
- * @return PreservedAnalyses
- */
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
-  // 判断是否需要开启间接调用
   if (toObfuscate(flag, &F, "icall")) {
     doIndirctCall(F);
     return PreservedAnalyses::none();
@@ -42,7 +34,7 @@ bool IndirectCallPass::doIndirctCall(Function &Fn) {
 
   unsigned pointerSize =
       Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
-          PointerType::getUnqual(Fn.getContext())); // Soule
+          PointerType::getUnqual(Fn.getContext()));
   if (pointerSize == 8) {
     intType = Type::getInt64Ty(Ctx);
   }
@@ -98,13 +90,6 @@ bool IndirectCallPass::doIndirctCall(Function &Fn) {
   return true;
 }
 
-/**
- * @brief
- *
- * @param F
- * @param EncKey
- * @return GlobalVariable*
- */
 GlobalVariable *IndirectCallPass::getIndirectCallees(Function &F,
                                                      ConstantInt *EncKey) {
   std::string GVName(F.getName().str() + "_IndirectCallees");
@@ -131,11 +116,6 @@ GlobalVariable *IndirectCallPass::getIndirectCallees(Function &F,
   return GV;
 }
 
-/**
- * @brief
- *
- * @param F
- */
 void IndirectCallPass::NumberCallees(Function &F) {
   for (auto &BB : F) {
     for (auto &I : BB) {
@@ -158,12 +138,6 @@ void IndirectCallPass::NumberCallees(Function &F) {
   }
 }
 
-/**
- * @brief
- *
- * @param flag
- * @return IndirectCallPass*
- */
 IndirectCallPass *llvm::createIndirectCall(bool flag) {
   return new IndirectCallPass(flag);
 }

@@ -22,7 +22,7 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
                                                   ModuleAnalysisManager &AM) {
 
   if (this->flag) {
-    outs() << "[Soule] force.run.IndirectGlobalVariablePass\n";
+    outs() << "force.run.IndirectGlobalVariablePass\n";
   }
   for (Function &Fn : M) {
     if (!toObfuscate(flag, &Fn, "igv")) {
@@ -47,9 +47,11 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
 
     uint64_t V = RandomEngine.get_uint64_t();
     IntegerType *intType = Type::getInt32Ty(Ctx);
+
     unsigned pointerSize =
         Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
-            PointerType::getUnqual(Fn.getContext())); // Soule
+            PointerType::getUnqual(Fn.getContext()));
+
     if (pointerSize == 8) {
       intType = Type::getInt64Ty(Ctx);
     }

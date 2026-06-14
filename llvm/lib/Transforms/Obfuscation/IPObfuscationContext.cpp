@@ -1,12 +1,10 @@
-// #include "llvm/Transforms/Obfuscation/ObfuscationPassManager.h"
-// #include "llvm/Transforms/IPO/PassManagerBuilder.h" // Soule.llvm17.update
-#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
-#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 
 #if LLVM_VERSION_MAJOR > 10
 #include "llvm/Transforms/Obfuscation/compat/CallSite.h"
@@ -19,7 +17,6 @@
 using namespace llvm;
 
 namespace llvm {
-
 bool IPObfuscationContext::runOnModule(llvm::Module &M) {
   for (auto &F : M) {
     SurveyFunction(F);
@@ -85,8 +82,7 @@ Function *IPObfuscationContext::InsertSecretArgument(Function *F) {
   SmallVector<AttributeSet, 8> ArgAttrVec;
   const AttributeList &PAL = F->getAttributes();
 
-  Params.push_back(Type::getInt32Ty(
-      F->getContext())); // Soule LLVM 17.0.6?  getInt32PtrTy -> getInt32Ty
+  Params.push_back(Type::getInt32Ty(F->getContext()));
   ArgAttrVec.push_back(AttributeSet());
 
   unsigned i = 0;
