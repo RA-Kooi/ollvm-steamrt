@@ -656,6 +656,17 @@ unsigned CryptoUtils::scramble32(const unsigned in, const char key[16]) {
   return tmpA ^ tmpB;
 }
 
+uint32_t CryptoUtils::scramble32(
+    uint32_t in, std::unordered_map<uint32_t /*IDX*/, uint32_t /*VAL*/> &VMap) {
+  if (VMap.find(in) == VMap.end()) {
+    uint32_t V = get_uint32_t();
+    VMap[in] = V;
+    return V;
+  } else {
+    return VMap[in];
+  }
+}
+
 bool CryptoUtils::prng_seed(std::string const &_seed) {
   unsigned char s[16];
   unsigned int i = 0;
@@ -879,8 +890,8 @@ uint8_t CryptoUtils::get_uint8_t() {
   return (uint8_t)ret;
 }
 
-uint16_t CryptoUtils::get_uint16_t() { 
-  return (uint16_t)get_uint64_t(); 
+uint16_t CryptoUtils::get_uint16_t() {
+  return (uint16_t)get_uint64_t();
 }
 
 char CryptoUtils::get_char() {
