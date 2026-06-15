@@ -6,6 +6,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Scalar/Reg2Mem.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 
 #define DEBUG_TYPE "flattening"
@@ -218,7 +219,7 @@ static bool flatten(Function *F) {
     }
   }
 
-  fixStack(*F);
+  RegToMemPass::runPass(*F);
 
   return true;
 }

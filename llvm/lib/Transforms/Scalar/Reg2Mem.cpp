@@ -51,7 +51,7 @@ static bool valueEscapes(const Instruction &Inst) {
   return false;
 }
 
-static bool runPass(Function &F) {
+bool RegToMemPass::runPass(Function &F) {
   // Insert all new allocas into entry block.
   BasicBlock *BBEntry = &F.getEntryBlock();
   assert(pred_empty(BBEntry) &&
