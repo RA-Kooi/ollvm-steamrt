@@ -109,7 +109,8 @@ static std::string getFunctionAnnotation(Function *F) {
   return "";
 }
 
-bool llvm::toObfuscate(bool Flag, Function *F, std::string const &Attribute) {
+bool llvm::shouldObfuscate(bool Flag, Function *F,
+                           std::string const &Attribute) {
   std::string Attr = Attribute;
   std::string AttrNo = "no" + Attr;
 

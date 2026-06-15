@@ -21,7 +21,7 @@ static bool flatten(Function *F);
 
 PreservedAnalyses FlatteningPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
-  if (toObfuscate(FlaEnabled, &F, "fla")) {
+  if (shouldObfuscate(FlaEnabled, &F, "fla")) {
     INIT_CONTEXT(F);
 
     if (flatten(&F)) {

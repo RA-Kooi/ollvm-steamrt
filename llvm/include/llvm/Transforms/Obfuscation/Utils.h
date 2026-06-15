@@ -22,7 +22,8 @@ namespace llvm {
 std::string readAnnotate(Function *F);
 
 // Determine whether obfuscation is enabled.
-bool toObfuscate(bool Flag, llvm::Function *F, std::string const &Attribute);
+bool shouldObfuscate(bool Flag, llvm::Function *F,
+                     std::string const &Attribute);
 
 void fixStack(Function &F);
 

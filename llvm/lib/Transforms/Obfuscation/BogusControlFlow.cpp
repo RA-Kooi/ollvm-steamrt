@@ -197,7 +197,7 @@ PreservedAnalyses BogusControlFlowPass::run(Function &F,
     return PreservedAnalyses::all();
   }
   // If fla annotations
-  if (toObfuscate(BcfEnabled, &F, "bcf")) {
+  if (shouldObfuscate(BcfEnabled, &F, "bcf")) {
     bogus(F);
     doF(*F.getParent(), F);
     return PreservedAnalyses::none();
