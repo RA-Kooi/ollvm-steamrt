@@ -179,6 +179,10 @@ static BasicBlock *createAlteredBasicBlock(BasicBlock *BasicBlock,
                                            const Twine &Name = "gen",
                                            Function *F = 0);
 
+static void bogus(Function &F);
+static void addBogusFlow(BasicBlock *Basic, Function &F);
+static bool doF(Module &M, Function &F);
+
 PreservedAnalyses BogusControlFlowPass::run(Function &F,
                                             FunctionAnalysisManager &AM) {
   // Check if the percentage is correct
@@ -201,7 +205,7 @@ PreservedAnalyses BogusControlFlowPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-void BogusControlFlowPass::bogus(Function &F) {
+static void bogus(Function &F) {
   // For statistics and debug
   ++NumFunction;
   bool FirstTime = true; // First time we do the loop in this function
@@ -282,7 +286,7 @@ void BogusControlFlowPass::bogus(Function &F) {
  * Add bogus flow to a given basic block, according to the header's
  * description
  */
-void BogusControlFlowPass::addBogusFlow(BasicBlock *Basic, Function &F) {
+static void addBogusFlow(BasicBlock *Basic, Function &F) {
   // Split the block: first part with only the phi nodes and debug info and
   // terminator
   //                  created by splitBasicBlock. (-> No instruction)
@@ -607,7 +611,7 @@ BasicBlock *createAlteredBasicBlock(BasicBlock *Basic, const Twine &Name,
  * More precisely, the condition which predicate is FCMP_TRUE.
  * It also remove all the functions' basic blocks' and instructions' names.
  */
-bool BogusControlFlowPass::doF(Module &M, Function &F) {
+static bool doF(Module &M, Function &F) {
   // In this part we extract all always-true predicate and replace them with
   // opaque predicate: For this, we declare two global values: x and y, and
   // replace the FCMP_TRUE predicate with (y < 10 || x * (x + 1) % 2 == 0) A
