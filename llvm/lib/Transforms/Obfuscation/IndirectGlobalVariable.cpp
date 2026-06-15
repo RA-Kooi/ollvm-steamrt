@@ -19,19 +19,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
+
+static cl::opt<bool> IgvEnabled("igv", cl::init(false),
+                                cl::desc("Indirect Global Variable"));
 
 PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
                                                   ModuleAnalysisManager &AM) {
 
-  if (this->Enabled) {
-    outs() << "force.run.IndirectGlobalVariablePass\n";
-  }
   for (Function &Fn : M) {
-    if (!toObfuscate(Enabled, &Fn, "igv")) {
+    if (!toObfuscate(IgvEnabled, &Fn, "igv")) {
       continue;
     }
 
@@ -173,8 +174,4 @@ IndirectGlobalVariablePass::getIndirectGlobalVariables(Function &F,
                          GlobalValue::LinkageTypes::PrivateLinkage, CA, GVName);
   appendToCompilerUsed(*F.getParent(), {GV});
   return GV;
-}
-
-IndirectGlobalVariablePass *llvm::createIndirectGlobalVariable(bool Enabled) {
-  return new IndirectGlobalVariablePass(Enabled);
 }

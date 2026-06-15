@@ -18,7 +18,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 
 #define NUMBER_ADD_SUBST 4
 #define NUMBER_SUB_SUBST 3
@@ -37,7 +36,7 @@ public:
   Predicate FuncOr[NUMBER_OR_SUBST];
   Predicate FuncXor[NUMBER_XOR_SUBST];
 
-  SubstitutionPass(bool Enable) : Enabled(Enable) {
+  SubstitutionPass() {
     FuncAdd[0] = &SubstitutionPass::addNeg;
     FuncAdd[1] = &SubstitutionPass::addDoubleNeg;
     FuncAdd[2] = &SubstitutionPass::addRand;
@@ -79,12 +78,7 @@ public:
   static void xorSubstitutionRand(BinaryOperator *Bo);
 
   static bool isRequired() { return true; }
-
-private:
-  bool Enabled;
 };
-
-SubstitutionPass *createSubstitutionPass(bool Enabled);
 } // namespace llvm
 
 #endif

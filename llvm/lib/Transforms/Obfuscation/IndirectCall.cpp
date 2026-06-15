@@ -1,14 +1,19 @@
 #include "llvm/Transforms/Obfuscation/IndirectCall.h"
 
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Obfuscation/compat/CallSite.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace llvm;
 
+static cl::opt<bool> IcallEnabled("icall", cl::init(false),
+                                  cl::desc("Indirect Call"));
+
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
-  if (toObfuscate(Enabled, &F, "icall")) {
+  if (toObfuscate(IcallEnabled, &F, "icall")) {
     doIndirctCall(F);
     return PreservedAnalyses::none();
   }
@@ -139,8 +144,4 @@ void IndirectCallPass::numberCallees(Function &F) {
       }
     }
   }
-}
-
-IndirectCallPass *llvm::createIndirectCall(bool Enabled) {
-  return new IndirectCallPass(Enabled);
 }

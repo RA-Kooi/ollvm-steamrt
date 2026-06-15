@@ -29,6 +29,10 @@ using namespace llvm;
 
 STATISTIC(Split, "Basicblock splitted");
 
+static cl::opt<bool>
+    SplitEnabled("split", cl::init(false),
+                 cl::desc("SplitBasicBlock: split_num=3(init)"));
+
 static cl::opt<int> SplitNum("split_num", cl::init(3),
                              cl::desc("Split <split_num> time(s) each BB"));
 
@@ -40,7 +44,7 @@ static void shuffle(std::vector<int> &Vec);
 
 PreservedAnalyses SplitBasicBlockPass::run(Function &F,
                                            FunctionAnalysisManager &AM) {
-  if (toObfuscate(Enabled, &F, "split")) {
+  if (toObfuscate(SplitEnabled, &F, "split")) {
     split(&F);
     ++Split;
     return PreservedAnalyses::none();
@@ -136,8 +140,4 @@ static void shuffle(std::vector<int> &Vec) {
   for (int I = N - 1; I > 0; --I) {
     std::swap(Vec[I], Vec[Cryptoutils->getUint32T() % (I + 1)]);
   }
-}
-
-SplitBasicBlockPass *llvm::createSplitBasicBlock(bool Enabled) {
-  return new SplitBasicBlockPass(Enabled);
 }
