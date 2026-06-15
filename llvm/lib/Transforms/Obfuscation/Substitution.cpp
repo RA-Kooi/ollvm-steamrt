@@ -73,14 +73,14 @@ bool SubstitutionPass::substitute(Function *F) {
           case BinaryOperator::Add:
             // case BinaryOperator::FAdd:
             // Substitute with random add operation
-            (*FuncAdd[llvm::Cryptoutils->getRange(NUMBER_ADD_SUBST)])(
+            (*FuncAdd[llvm::Cryptoutils->getRange(NumberAddSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Add;
             break;
           case BinaryOperator::Sub:
             // case BinaryOperator::FSub:
             // Substitute with random sub operation
-            (*FuncSub[llvm::Cryptoutils->getRange(NUMBER_SUB_SUBST)])(
+            (*FuncSub[llvm::Cryptoutils->getRange(NumberSubSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Sub;
             break;
@@ -108,17 +108,17 @@ bool SubstitutionPass::substitute(Function *F) {
             //++Shi;
             break;
           case Instruction::And:
-            (*FuncAnd[llvm::Cryptoutils->getRange(2)])(
+            (*FuncAnd[llvm::Cryptoutils->getRange(NumberAndSubst)])(
                 cast<BinaryOperator>(Inst));
             ++And;
             break;
           case Instruction::Or:
-            (*FuncOr[llvm::Cryptoutils->getRange(2)])(
+            (*FuncOr[llvm::Cryptoutils->getRange(NumberOrSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Or;
             break;
           case Instruction::Xor:
-            (*FuncXor[llvm::Cryptoutils->getRange(2)])(
+            (*FuncXor[llvm::Cryptoutils->getRange(NumberXorSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Xor;
             break;

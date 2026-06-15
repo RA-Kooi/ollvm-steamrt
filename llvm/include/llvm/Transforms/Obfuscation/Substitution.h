@@ -19,22 +19,22 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 
-#define NUMBER_ADD_SUBST 4
-#define NUMBER_SUB_SUBST 3
-#define NUMBER_AND_SUBST 2
-#define NUMBER_OR_SUBST 2
-#define NUMBER_XOR_SUBST 2
+constexpr int NumberAddSubst = 4;
+constexpr int NumberSubSubst = 3;
+constexpr int NumberAndSubst = 2;
+constexpr int NumberOrSubst = 2;
+constexpr int NumberXorSubst = 2;
 
 namespace llvm {
 class SubstitutionPass : public PassInfoMixin<SubstitutionPass> {
 public:
   using Predicate = void (*)(BinaryOperator *Bo);
 
-  Predicate FuncAdd[NUMBER_ADD_SUBST];
-  Predicate FuncSub[NUMBER_SUB_SUBST];
-  Predicate FuncAnd[NUMBER_AND_SUBST];
-  Predicate FuncOr[NUMBER_OR_SUBST];
-  Predicate FuncXor[NUMBER_XOR_SUBST];
+  Predicate FuncAdd[NumberAddSubst];
+  Predicate FuncSub[NumberSubSubst];
+  Predicate FuncAnd[NumberAndSubst];
+  Predicate FuncOr[NumberOrSubst];
+  Predicate FuncXor[NumberXorSubst];
 
   SubstitutionPass() {
     FuncAdd[0] = &SubstitutionPass::addNeg;
