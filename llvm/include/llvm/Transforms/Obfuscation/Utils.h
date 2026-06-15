@@ -17,12 +17,6 @@
 
 extern llvm::LLVMContext *CONTEXT;
 
-// FLA and BCF will throw errors when obfuscating partial functions,
-// so full obfuscation cannot be enabled via the command line.
-// Furthermore, Visual Studio seems unable to pass annotate to LLVM;
-// it can only control it using function names.
-extern bool ObfFunctionNameCmd;
-
 namespace llvm {
 // Read annotation values from llvm.global.annotations
 std::string readAnnotate(Function *F);
