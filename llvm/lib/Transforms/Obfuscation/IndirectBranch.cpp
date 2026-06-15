@@ -18,20 +18,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <random>
 
 using namespace llvm;
 
+static cl::opt<bool> IbrEnabled("ibr", cl::init(false),
+                                cl::desc("Indirect Branch"));
+
 PreservedAnalyses IndirectBranchPass::run(Module &M,
                                           ModuleAnalysisManager &AM) {
-  if (this->Enabled) {
-    outs() << "force.run.IndirectBranchPass\n";
-  }
-
   for (Function &Fn : M) {
-    if (toObfuscate(Enabled, &Fn, "ibr")) {
+    if (toObfuscate(IbrEnabled, &Fn, "ibr")) {
 
       if (Options && Options->skipFunction(Fn.getName())) {
         continue;
@@ -158,8 +159,4 @@ GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
                          GlobalValue::LinkageTypes::PrivateLinkage, CA, GVName);
   appendToCompilerUsed(*F.getParent(), {GV});
   return GV;
-}
-
-IndirectBranchPass *llvm::createIndirectBranch(bool Enabled) {
-  return new IndirectBranchPass(Enabled);
 }

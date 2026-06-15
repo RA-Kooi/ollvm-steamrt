@@ -1,7 +1,7 @@
 #include "llvm/Transforms/Obfuscation/Flattening.h"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/IR//Constants.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
@@ -15,11 +15,13 @@ using namespace llvm;
 
 STATISTIC(Flattened, "Functions flattened");
 
+static cl::opt<bool> FlaEnabled("fla", cl::init(false), cl::desc("Flattening"));
+
 static bool flatten(Function *F);
 
 PreservedAnalyses FlatteningPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
-  if (toObfuscate(Enabled, &F, "fla")) {
+  if (toObfuscate(FlaEnabled, &F, "fla")) {
     INIT_CONTEXT(F);
 
     if (flatten(&F)) {
@@ -222,8 +224,4 @@ static bool flatten(Function *F) {
   RegToMemPass::runPass(*F);
 
   return true;
-}
-
-FlatteningPass *llvm::createFlattening(bool Enabled) {
-  return new FlatteningPass(Enabled);
 }

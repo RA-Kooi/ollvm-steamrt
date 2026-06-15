@@ -3,6 +3,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
@@ -16,6 +17,9 @@
 #define DEBUG_TYPE "strenc"
 
 using namespace llvm;
+
+static cl::opt<bool> SobfEnabled("sobf", cl::init(false),
+                                 cl::desc("String Obfuscation"));
 
 namespace {
 struct EncryptedGV {
@@ -207,9 +211,9 @@ bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled,
 
 PreservedAnalyses StringEncryptionPass::run(Module &M,
                                             ModuleAnalysisManager &AM) {
-  if (Enabled) {
+  if (SobfEnabled) {
     PassState State;
-    if (State.doStrEnc(M, AM, Enabled, *Options))
+    if (State.doStrEnc(M, AM, SobfEnabled, *Options))
       return PreservedAnalyses::none();
   }
 
@@ -553,8 +557,4 @@ void PassState::deleteUnusedGlobalVariable() {
       }
     }
   }
-}
-
-StringEncryptionPass *llvm::createStringEncryption(bool Enabled) {
-  return new StringEncryptionPass(Enabled);
 }

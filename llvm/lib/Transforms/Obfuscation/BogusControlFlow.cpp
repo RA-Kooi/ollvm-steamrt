@@ -121,9 +121,12 @@
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -154,6 +157,10 @@ STATISTIC(FinalNumBasicBlocks,
 // Options for the pass
 constexpr int DefaultObfRate = 70;
 constexpr int DefaultObfTime = 2;
+
+static cl::opt<bool> BcfEnabled("bcf", cl::init(false),
+                                cl::desc("BogusControlFlow: application number "
+                                         "-bcf_loop=x must be x > 0"));
 
 static cl::opt<int>
     ObfProbRate("bcf_prob",
@@ -186,7 +193,7 @@ PreservedAnalyses BogusControlFlowPass::run(Function &F,
     return PreservedAnalyses::all();
   }
   // If fla annotations
-  if (toObfuscate(Enabled, &F, "bcf")) {
+  if (toObfuscate(BcfEnabled, &F, "bcf")) {
     bogus(F);
     doF(*F.getParent(), F);
     return PreservedAnalyses::none();
@@ -700,8 +707,4 @@ bool BogusControlFlowPass::doF(Module &M, Function &F) {
   // }
 
   return true;
-}
-
-BogusControlFlowPass *llvm::createBogusControlFlow(bool Flag) {
-  return new BogusControlFlowPass(Flag);
 }

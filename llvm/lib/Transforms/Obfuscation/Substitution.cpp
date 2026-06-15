@@ -27,6 +27,9 @@
 
 using namespace llvm;
 
+static cl::opt<bool> SubEnabled("sub", cl::init(false),
+                                cl::desc("Substitution: sub_loop"));
+
 static cl::opt<int>
     ObfTimes("sub_loop",
              cl::desc("Choose how many time the -sub pass loops on a function"),
@@ -51,7 +54,7 @@ PreservedAnalyses SubstitutionPass::run(Function &F,
   }
 
   // Do we obfuscate
-  if (toObfuscate(Enabled, &F, "sub")) {
+  if (toObfuscate(SubEnabled, &F, "sub")) {
     substitute(&F);
     return PreservedAnalyses::none();
   }
@@ -506,8 +509,4 @@ void SubstitutionPass::xorSubstitutionRand(BinaryOperator *Bo) {
   // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
   Op = BinaryOperator::Create(Instruction::Xor, Op, Op1, "", Bo);
   Bo->replaceAllUsesWith(Op);
-}
-
-SubstitutionPass *llvm::createSubstitutionPass(bool Enabled) {
-  return new SubstitutionPass(Enabled);
 }
