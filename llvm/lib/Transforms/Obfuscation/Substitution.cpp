@@ -50,38 +50,35 @@ PreservedAnalyses SubstitutionPass::run(Function &F,
     return PreservedAnalyses::all();
   }
 
-  Function *tmp = &F;
   // Do we obfuscate
-  if (toObfuscate(flag, tmp, "sub")) {
-    substitute(tmp);
+  if (toObfuscate(Enabled, &F, "sub")) {
+    substitute(&F);
     return PreservedAnalyses::none();
   }
 
   return PreservedAnalyses::all();
 }
 
-bool SubstitutionPass::substitute(Function *f) {
-  Function *tmp = f;
-
+bool SubstitutionPass::substitute(Function *F) {
   // Loop for the number of time we run the pass on the function
-  int times = ObfTimes;
+  int Times = ObfTimes;
   do {
-    for (Function::iterator bb = tmp->begin(); bb != tmp->end(); ++bb) {
-      for (BasicBlock::iterator inst = bb->begin(); inst != bb->end(); ++inst) {
-        if (inst->isBinaryOp()) {
-          switch (inst->getOpcode()) {
+    for (Function::iterator Bb = F->begin(); Bb != F->end(); ++Bb) {
+      for (BasicBlock::iterator Inst = Bb->begin(); Inst != Bb->end(); ++Inst) {
+        if (Inst->isBinaryOp()) {
+          switch (Inst->getOpcode()) {
           case BinaryOperator::Add:
             // case BinaryOperator::FAdd:
             // Substitute with random add operation
-            (this->*funcAdd[llvm::cryptoutils->get_range(NUMBER_ADD_SUBST)])(
-                cast<BinaryOperator>(inst));
+            (*FuncAdd[llvm::Cryptoutils->getRange(NUMBER_ADD_SUBST)])(
+                cast<BinaryOperator>(Inst));
             ++Add;
             break;
           case BinaryOperator::Sub:
             // case BinaryOperator::FSub:
             // Substitute with random sub operation
-            (this->*funcSub[llvm::cryptoutils->get_range(NUMBER_SUB_SUBST)])(
-                cast<BinaryOperator>(inst));
+            (*FuncSub[llvm::Cryptoutils->getRange(NUMBER_SUB_SUBST)])(
+                cast<BinaryOperator>(Inst));
             ++Sub;
             break;
           case BinaryOperator::Mul:
@@ -108,18 +105,18 @@ bool SubstitutionPass::substitute(Function *f) {
             //++Shi;
             break;
           case Instruction::And:
-            (this->*funcAnd[llvm::cryptoutils->get_range(2)])(
-                cast<BinaryOperator>(inst));
+            (*FuncAnd[llvm::Cryptoutils->getRange(2)])(
+                cast<BinaryOperator>(Inst));
             ++And;
             break;
           case Instruction::Or:
-            (this->*funcOr[llvm::cryptoutils->get_range(2)])(
-                cast<BinaryOperator>(inst));
+            (*FuncOr[llvm::Cryptoutils->getRange(2)])(
+                cast<BinaryOperator>(Inst));
             ++Or;
             break;
           case Instruction::Xor:
-            (this->*funcXor[llvm::cryptoutils->get_range(2)])(
-                cast<BinaryOperator>(inst));
+            (*FuncXor[llvm::Cryptoutils->getRange(2)])(
+                cast<BinaryOperator>(Inst));
             ++Xor;
             break;
           default:
@@ -128,25 +125,25 @@ bool SubstitutionPass::substitute(Function *f) {
         } // End isBinaryOp
       } // End for basickblock
     } // End for Function
-  } while (--times > 0); // for times
+  } while (--Times > 0); // for times
   return false;
 }
 
 // Implementation of a = b - (-c)
-void SubstitutionPass::addNeg(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::addNeg(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
   // Create sub
-  if (bo->getOpcode() == Instruction::Add) {
-    op = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo);
-    op =
-        BinaryOperator::Create(Instruction::Sub, bo->getOperand(0), op, "", bo);
+  if (Bo->getOpcode() == Instruction::Add) {
+    Op = BinaryOperator::CreateNeg(Bo->getOperand(1), "", Bo);
+    Op =
+        BinaryOperator::Create(Instruction::Sub, Bo->getOperand(0), Op, "", Bo);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
 
-    bo->replaceAllUsesWith(op);
+    Bo->replaceAllUsesWith(Op);
   } /* else {
      op = BinaryOperator::CreateFNeg(bo->getOperand(1), "", bo);
      op = BinaryOperator::Create(Instruction::FSub, bo->getOperand(0), op, "",
@@ -155,46 +152,46 @@ void SubstitutionPass::addNeg(BinaryOperator *bo) {
 }
 
 // Implementation of a = -(-b + (-c))
-void SubstitutionPass::addDoubleNeg(BinaryOperator *bo) {
-  BinaryOperator *op, *op2 = NULL;
-  UnaryOperator *op3, *op4;
-  if (bo->getOpcode() == Instruction::Add) {
-    op = BinaryOperator::CreateNeg(bo->getOperand(0), "", bo);
-    op2 = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::Add, op, op2, "", bo);
-    op = BinaryOperator::CreateNeg(op, "", bo);
-    bo->replaceAllUsesWith(op);
+void SubstitutionPass::addDoubleNeg(BinaryOperator *Bo) {
+  BinaryOperator *Op, *Op2 = NULL;
+  UnaryOperator *Op3, *Op4;
+  if (Bo->getOpcode() == Instruction::Add) {
+    Op = BinaryOperator::CreateNeg(Bo->getOperand(0), "", Bo);
+    Op2 = BinaryOperator::CreateNeg(Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::Add, Op, Op2, "", Bo);
+    Op = BinaryOperator::CreateNeg(Op, "", Bo);
+    Bo->replaceAllUsesWith(Op);
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
   } else {
-    op3 = UnaryOperator::CreateFNeg(bo->getOperand(0), "", bo);
-    op4 = UnaryOperator::CreateFNeg(bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::FAdd, op3, op4, "", bo);
-    op3 = UnaryOperator::CreateFNeg(op, "", bo);
-    bo->replaceAllUsesWith(op3);
+    Op3 = UnaryOperator::CreateFNeg(Bo->getOperand(0), "", Bo);
+    Op4 = UnaryOperator::CreateFNeg(Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::FAdd, Op3, Op4, "", Bo);
+    Op3 = UnaryOperator::CreateFNeg(Op, "", Bo);
+    Bo->replaceAllUsesWith(Op3);
   }
 }
 
 // Implementation of  r = rand (); a = b + r; a = a + c; a = a - r
-void SubstitutionPass::addRand(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::addRand(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
-  if (bo->getOpcode() == Instruction::Add) {
-    Type *ty = bo->getType();
-    ConstantInt *co =
-        (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
-    op =
-        BinaryOperator::Create(Instruction::Add, bo->getOperand(0), co, "", bo);
-    op =
-        BinaryOperator::Create(Instruction::Add, op, bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::Sub, op, co, "", bo);
+  if (Bo->getOpcode() == Instruction::Add) {
+    Type *Ty = Bo->getType();
+    ConstantInt *Co =
+        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+    Op =
+        BinaryOperator::Create(Instruction::Add, Bo->getOperand(0), Co, "", Bo);
+    Op =
+        BinaryOperator::Create(Instruction::Add, Op, Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::Sub, Op, Co, "", Bo);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
 
-    bo->replaceAllUsesWith(op);
+    Bo->replaceAllUsesWith(Op);
   }
   /* else {
       Type *ty = bo->getType();
@@ -207,24 +204,24 @@ void SubstitutionPass::addRand(BinaryOperator *bo) {
 }
 
 // Implementation of r = rand (); a = b - r; a = a + b; a = a + r
-void SubstitutionPass::addRand2(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::addRand2(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
-  if (bo->getOpcode() == Instruction::Add) {
-    Type *ty = bo->getType();
-    ConstantInt *co =
-        (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
-    op =
-        BinaryOperator::Create(Instruction::Sub, bo->getOperand(0), co, "", bo);
-    op =
-        BinaryOperator::Create(Instruction::Add, op, bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::Add, op, co, "", bo);
+  if (Bo->getOpcode() == Instruction::Add) {
+    Type *Ty = Bo->getType();
+    ConstantInt *Co =
+        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+    Op =
+        BinaryOperator::Create(Instruction::Sub, Bo->getOperand(0), Co, "", Bo);
+    Op =
+        BinaryOperator::Create(Instruction::Add, Op, Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::Add, Op, Co, "", Bo);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
 
-    bo->replaceAllUsesWith(op);
+    Bo->replaceAllUsesWith(Op);
   }
   /* else {
       Type *ty = bo->getType();
@@ -237,42 +234,42 @@ void SubstitutionPass::addRand2(BinaryOperator *bo) {
 }
 
 // Implementation of a = b + (-c)
-void SubstitutionPass::subNeg(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
-  if (bo->getOpcode() == Instruction::Sub) {
-    op = BinaryOperator::CreateNeg(bo->getOperand(1), "", bo);
-    op =
-        BinaryOperator::Create(Instruction::Add, bo->getOperand(0), op, "", bo);
+void SubstitutionPass::subNeg(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
+  if (Bo->getOpcode() == Instruction::Sub) {
+    Op = BinaryOperator::CreateNeg(Bo->getOperand(1), "", Bo);
+    Op =
+        BinaryOperator::Create(Instruction::Add, Bo->getOperand(0), Op, "", Bo);
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
   } else {
-    auto op1 = UnaryOperator::CreateFNeg(bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::FAdd, bo->getOperand(0), op1, "",
-                                bo);
+    auto *Op1 = UnaryOperator::CreateFNeg(Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::FAdd, Bo->getOperand(0), Op1, "",
+                                Bo);
   }
-  bo->replaceAllUsesWith(op);
+  Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of  r = rand (); a = b + r; a = a - c; a = a - r
-void SubstitutionPass::subRand(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::subRand(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
-  if (bo->getOpcode() == Instruction::Sub) {
-    Type *ty = bo->getType();
-    ConstantInt *co =
-        (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
-    op =
-        BinaryOperator::Create(Instruction::Add, bo->getOperand(0), co, "", bo);
-    op =
-        BinaryOperator::Create(Instruction::Sub, op, bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::Sub, op, co, "", bo);
+  if (Bo->getOpcode() == Instruction::Sub) {
+    Type *Ty = Bo->getType();
+    ConstantInt *Co =
+        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+    Op =
+        BinaryOperator::Create(Instruction::Add, Bo->getOperand(0), Co, "", Bo);
+    Op =
+        BinaryOperator::Create(Instruction::Sub, Op, Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::Sub, Op, Co, "", Bo);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
 
-    bo->replaceAllUsesWith(op);
+    Bo->replaceAllUsesWith(Op);
   }
   /* else {
       Type *ty = bo->getType();
@@ -285,24 +282,24 @@ void SubstitutionPass::subRand(BinaryOperator *bo) {
 }
 
 // Implementation of  r = rand (); a = b - r; a = a - c; a = a + r
-void SubstitutionPass::subRand2(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::subRand2(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
-  if (bo->getOpcode() == Instruction::Sub) {
-    Type *ty = bo->getType();
-    ConstantInt *co =
-        (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
-    op =
-        BinaryOperator::Create(Instruction::Sub, bo->getOperand(0), co, "", bo);
-    op =
-        BinaryOperator::Create(Instruction::Sub, op, bo->getOperand(1), "", bo);
-    op = BinaryOperator::Create(Instruction::Add, op, co, "", bo);
+  if (Bo->getOpcode() == Instruction::Sub) {
+    Type *Ty = Bo->getType();
+    ConstantInt *Co =
+        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+    Op =
+        BinaryOperator::Create(Instruction::Sub, Bo->getOperand(0), Co, "", Bo);
+    Op =
+        BinaryOperator::Create(Instruction::Sub, Op, Bo->getOperand(1), "", Bo);
+    Op = BinaryOperator::Create(Instruction::Add, Op, Co, "", Bo);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
 
-    bo->replaceAllUsesWith(op);
+    Bo->replaceAllUsesWith(Op);
   }
   /* else {
       Type *ty = bo->getType();
@@ -315,202 +312,202 @@ void SubstitutionPass::subRand2(BinaryOperator *bo) {
 }
 
 // Implementation of a = b & c => a = (b^~c)& b
-void SubstitutionPass::andSubstitution(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::andSubstitution(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
   // Create NOT on second operand => ~c
-  op = BinaryOperator::CreateNot(bo->getOperand(1), "", bo);
+  Op = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo);
 
   // Create XOR => (b^~c)
-  BinaryOperator *op1 =
-      BinaryOperator::Create(Instruction::Xor, bo->getOperand(0), op, "", bo);
+  BinaryOperator *Op1 =
+      BinaryOperator::Create(Instruction::Xor, Bo->getOperand(0), Op, "", Bo);
 
   // Create AND => (b^~c) & b
-  op = BinaryOperator::Create(Instruction::And, op1, bo->getOperand(0), "", bo);
-  bo->replaceAllUsesWith(op);
+  Op = BinaryOperator::Create(Instruction::And, Op1, Bo->getOperand(0), "", Bo);
+  Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = a & b <=> ~(~a | ~b) & (r | ~r)
-void SubstitutionPass::andSubstitutionRand(BinaryOperator *bo) {
+void SubstitutionPass::andSubstitutionRand(BinaryOperator *Bo) {
   // Copy of the BinaryOperator type to create the random number with the
   // same type of the operands
-  Type *ty = bo->getType();
+  Type *Ty = Bo->getType();
 
   // r (Random number)
-  ConstantInt *co =
-      (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
+  ConstantInt *Co =
+      (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
 
   // ~a
-  BinaryOperator *op = BinaryOperator::CreateNot(bo->getOperand(0), "", bo);
+  BinaryOperator *Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo);
 
   // ~b
-  BinaryOperator *op1 = BinaryOperator::CreateNot(bo->getOperand(1), "", bo);
+  BinaryOperator *Op1 = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo);
 
   // ~r
-  BinaryOperator *opr = BinaryOperator::CreateNot(co, "", bo);
+  BinaryOperator *Opr = BinaryOperator::CreateNot(Co, "", Bo);
 
   // (~a | ~b)
-  BinaryOperator *opa =
-      BinaryOperator::Create(Instruction::Or, op, op1, "", bo);
+  BinaryOperator *Opa =
+      BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo);
 
   // (r | ~r)
-  opr = BinaryOperator::Create(Instruction::Or, co, opr, "", bo);
+  Opr = BinaryOperator::Create(Instruction::Or, Co, Opr, "", Bo);
 
   // ~(~a | ~b)
-  op = BinaryOperator::CreateNot(opa, "", bo);
+  Op = BinaryOperator::CreateNot(Opa, "", Bo);
 
   // ~(~a | ~b) & (r | ~r)
-  op = BinaryOperator::Create(Instruction::And, op, opr, "", bo);
+  Op = BinaryOperator::Create(Instruction::And, Op, Opr, "", Bo);
 
   // We replace all the old AND operators with the new one transformed
-  bo->replaceAllUsesWith(op);
+  Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = a | b =>
 // a = (((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))) | (~(~a | ~b) & (r | ~r))
-void SubstitutionPass::orSubstitutionRand(BinaryOperator *bo) {
+void SubstitutionPass::orSubstitutionRand(BinaryOperator *Bo) {
 
-  Type *ty = bo->getType();
-  ConstantInt *co =
-      (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
+  Type *Ty = Bo->getType();
+  ConstantInt *Co =
+      (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
 
   // ~a
-  BinaryOperator *op = BinaryOperator::CreateNot(bo->getOperand(0), "", bo);
+  BinaryOperator *Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo);
 
   // ~b
-  BinaryOperator *op1 = BinaryOperator::CreateNot(bo->getOperand(1), "", bo);
+  BinaryOperator *Op1 = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo);
 
   // ~r
-  BinaryOperator *op2 = BinaryOperator::CreateNot(co, "", bo);
+  BinaryOperator *Op2 = BinaryOperator::CreateNot(Co, "", Bo);
 
   // ~a & r
-  BinaryOperator *op3 =
-      BinaryOperator::Create(Instruction::And, op, co, "", bo);
+  BinaryOperator *Op3 =
+      BinaryOperator::Create(Instruction::And, Op, Co, "", Bo);
 
   // a & ~r
-  BinaryOperator *op4 =
-      BinaryOperator::Create(Instruction::And, bo->getOperand(0), op2, "", bo);
+  BinaryOperator *Op4 =
+      BinaryOperator::Create(Instruction::And, Bo->getOperand(0), Op2, "", Bo);
 
   // ~b & r
-  BinaryOperator *op5 =
-      BinaryOperator::Create(Instruction::And, op1, co, "", bo);
+  BinaryOperator *Op5 =
+      BinaryOperator::Create(Instruction::And, Op1, Co, "", Bo);
 
   // b & ~r
-  BinaryOperator *op6 =
-      BinaryOperator::Create(Instruction::And, bo->getOperand(1), op2, "", bo);
+  BinaryOperator *Op6 =
+      BinaryOperator::Create(Instruction::And, Bo->getOperand(1), Op2, "", Bo);
 
   // (~a & r) | (a & ~r)
-  op3 = BinaryOperator::Create(Instruction::Or, op3, op4, "", bo);
+  Op3 = BinaryOperator::Create(Instruction::Or, Op3, Op4, "", Bo);
 
   // (~b & r) | (b & ~r)
-  op4 = BinaryOperator::Create(Instruction::Or, op5, op6, "", bo);
+  Op4 = BinaryOperator::Create(Instruction::Or, Op5, Op6, "", Bo);
 
   // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
-  op5 = BinaryOperator::Create(Instruction::Xor, op3, op4, "", bo);
+  Op5 = BinaryOperator::Create(Instruction::Xor, Op3, Op4, "", Bo);
 
   // ~a | ~b
-  op3 = BinaryOperator::Create(Instruction::Or, op, op1, "", bo);
+  Op3 = BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo);
 
   // ~(~a | ~b)
-  op3 = BinaryOperator::CreateNot(op3, "", bo);
+  Op3 = BinaryOperator::CreateNot(Op3, "", Bo);
 
   // r | ~r
-  op4 = BinaryOperator::Create(Instruction::Or, co, op2, "", bo);
+  Op4 = BinaryOperator::Create(Instruction::Or, Co, Op2, "", Bo);
 
   // ~(~a | ~b) & (r | ~r)
-  op4 = BinaryOperator::Create(Instruction::And, op3, op4, "", bo);
+  Op4 = BinaryOperator::Create(Instruction::And, Op3, Op4, "", Bo);
 
   // (((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))) | (~(~a | ~b) & (r | ~r))
-  op = BinaryOperator::Create(Instruction::Or, op5, op4, "", bo);
-  bo->replaceAllUsesWith(op);
+  Op = BinaryOperator::Create(Instruction::Or, Op5, Op4, "", Bo);
+  Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = b | c => a = (b & c) | (b ^ c)
-void SubstitutionPass::orSubstitution(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::orSubstitution(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
   // Creating first operand (b & c)
-  op = BinaryOperator::Create(Instruction::And, bo->getOperand(0),
-                              bo->getOperand(1), "", bo);
+  Op = BinaryOperator::Create(Instruction::And, Bo->getOperand(0),
+                              Bo->getOperand(1), "", Bo);
 
   // Creating second operand (b ^ c)
-  BinaryOperator *op1 = BinaryOperator::Create(
-      Instruction::Xor, bo->getOperand(0), bo->getOperand(1), "", bo);
+  BinaryOperator *Op1 = BinaryOperator::Create(
+      Instruction::Xor, Bo->getOperand(0), Bo->getOperand(1), "", Bo);
 
   // final op
-  op = BinaryOperator::Create(Instruction::Or, op, op1, "", bo);
-  bo->replaceAllUsesWith(op);
+  Op = BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo);
+  Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = a ^ b => a = (~a & b) | (a & ~b)
-void SubstitutionPass::xorSubstitution(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::xorSubstitution(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
   // Create NOT on first operand
-  op = BinaryOperator::CreateNot(bo->getOperand(0), "", bo); // ~a
+  Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo); // ~a
 
   // Create AND
-  op = BinaryOperator::Create(Instruction::And, bo->getOperand(1), op, "",
-                              bo); // ~a & b
+  Op = BinaryOperator::Create(Instruction::And, Bo->getOperand(1), Op, "",
+                              Bo); // ~a & b
 
   // Create NOT on second operand
-  BinaryOperator *op1 =
-      BinaryOperator::CreateNot(bo->getOperand(1), "", bo); // ~b
+  BinaryOperator *Op1 =
+      BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo); // ~b
 
   // Create AND
-  op1 = BinaryOperator::Create(Instruction::And, bo->getOperand(0), op1, "",
-                               bo); // a & ~b
+  Op1 = BinaryOperator::Create(Instruction::And, Bo->getOperand(0), Op1, "",
+                               Bo); // a & ~b
 
   // Create OR
-  op = BinaryOperator::Create(Instruction::Or, op, op1, "",
-                              bo); // (~a & b) | (a & ~b)
-  bo->replaceAllUsesWith(op);
+  Op = BinaryOperator::Create(Instruction::Or, Op, Op1, "",
+                              Bo); // (~a & b) | (a & ~b)
+  Bo->replaceAllUsesWith(Op);
 }
 
 // implementation of a = a ^ b <=> (a ^ r) ^ (b ^ r) <=>
 // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
 // note : r is a random number
-void SubstitutionPass::xorSubstitutionRand(BinaryOperator *bo) {
-  BinaryOperator *op = NULL;
+void SubstitutionPass::xorSubstitutionRand(BinaryOperator *Bo) {
+  BinaryOperator *Op = NULL;
 
-  Type *ty = bo->getType();
-  ConstantInt *co =
-      (ConstantInt *)ConstantInt::get(ty, llvm::cryptoutils->get_uint64_t());
+  Type *Ty = Bo->getType();
+  ConstantInt *Co =
+      (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
 
   // ~a
-  op = BinaryOperator::CreateNot(bo->getOperand(0), "", bo);
+  Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo);
 
   // ~a & r
-  op = BinaryOperator::Create(Instruction::And, co, op, "", bo);
+  Op = BinaryOperator::Create(Instruction::And, Co, Op, "", Bo);
 
   // ~r
-  BinaryOperator *opr = BinaryOperator::CreateNot(co, "", bo);
+  BinaryOperator *Opr = BinaryOperator::CreateNot(Co, "", Bo);
 
   // a & ~r
-  BinaryOperator *op1 =
-      BinaryOperator::Create(Instruction::And, bo->getOperand(0), opr, "", bo);
+  BinaryOperator *Op1 =
+      BinaryOperator::Create(Instruction::And, Bo->getOperand(0), Opr, "", Bo);
 
   // ~b
-  BinaryOperator *op2 = BinaryOperator::CreateNot(bo->getOperand(1), "", bo);
+  BinaryOperator *Op2 = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo);
 
   // ~b & r
-  op2 = BinaryOperator::Create(Instruction::And, op2, co, "", bo);
+  Op2 = BinaryOperator::Create(Instruction::And, Op2, Co, "", Bo);
 
   // b & ~r
-  BinaryOperator *op3 =
-      BinaryOperator::Create(Instruction::And, bo->getOperand(1), opr, "", bo);
+  BinaryOperator *Op3 =
+      BinaryOperator::Create(Instruction::And, Bo->getOperand(1), Opr, "", Bo);
 
   // (~a & r) | (a & ~r)
-  op = BinaryOperator::Create(Instruction::Or, op, op1, "", bo);
+  Op = BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo);
 
   // (~b & r) | (b & ~r)
-  op1 = BinaryOperator::Create(Instruction::Or, op2, op3, "", bo);
+  Op1 = BinaryOperator::Create(Instruction::Or, Op2, Op3, "", Bo);
 
   // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
-  op = BinaryOperator::Create(Instruction::Xor, op, op1, "", bo);
-  bo->replaceAllUsesWith(op);
+  Op = BinaryOperator::Create(Instruction::Xor, Op, Op1, "", Bo);
+  Bo->replaceAllUsesWith(Op);
 }
 
-SubstitutionPass *llvm::createSubstitutionPass(bool flag) {
-  return new SubstitutionPass(flag);
+SubstitutionPass *llvm::createSubstitutionPass(bool Enabled) {
+  return new SubstitutionPass(Enabled);
 }

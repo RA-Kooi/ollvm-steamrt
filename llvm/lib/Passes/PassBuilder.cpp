@@ -494,8 +494,8 @@ PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
       [](llvm::ModulePassManager &MPM,
          llvm::OptimizationLevel Level) {
         outs() << "[obf] run.registerOptimizerLastEPCallback\n";
-        obf_function_name_cmd = s_obf_fn_name_cmd;
-        if (obf_function_name_cmd) {
+        ObfFunctionNameCmd = s_obf_fn_name_cmd;
+        if (ObfFunctionNameCmd) {
           outs() << "[obf] enable function name control obfuscation(_ + command + _ | example: function_fla_)\n";
         }
         MPM.addPass(StringEncryptionPass(s_obf_sobf)); // 先进行字符串加密 出现字符串加密基本块以后再进行基本块分割和其他混淆 加大解密难度

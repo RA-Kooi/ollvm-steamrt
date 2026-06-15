@@ -29,59 +29,62 @@
 namespace llvm {
 class SubstitutionPass : public PassInfoMixin<SubstitutionPass> {
 public:
-  bool flag;
-  void (SubstitutionPass::*funcAdd[NUMBER_ADD_SUBST])(BinaryOperator *bo);
-  void (SubstitutionPass::*funcSub[NUMBER_SUB_SUBST])(BinaryOperator *bo);
-  void (SubstitutionPass::*funcAnd[NUMBER_AND_SUBST])(BinaryOperator *bo);
-  void (SubstitutionPass::*funcOr[NUMBER_OR_SUBST])(BinaryOperator *bo);
-  void (SubstitutionPass::*funcXor[NUMBER_XOR_SUBST])(BinaryOperator *bo);
+  using Predicate = void (*)(BinaryOperator *Bo);
 
-  SubstitutionPass(bool flag) {
-    this->flag = flag;
-    funcAdd[0] = &SubstitutionPass::addNeg;
-    funcAdd[1] = &SubstitutionPass::addDoubleNeg;
-    funcAdd[2] = &SubstitutionPass::addRand;
-    funcAdd[3] = &SubstitutionPass::addRand2;
+  Predicate FuncAdd[NUMBER_ADD_SUBST];
+  Predicate FuncSub[NUMBER_SUB_SUBST];
+  Predicate FuncAnd[NUMBER_AND_SUBST];
+  Predicate FuncOr[NUMBER_OR_SUBST];
+  Predicate FuncXor[NUMBER_XOR_SUBST];
 
-    funcSub[0] = &SubstitutionPass::subNeg;
-    funcSub[1] = &SubstitutionPass::subRand;
-    funcSub[2] = &SubstitutionPass::subRand2;
+  SubstitutionPass(bool Enable) : Enabled(Enable) {
+    FuncAdd[0] = &SubstitutionPass::addNeg;
+    FuncAdd[1] = &SubstitutionPass::addDoubleNeg;
+    FuncAdd[2] = &SubstitutionPass::addRand;
+    FuncAdd[3] = &SubstitutionPass::addRand2;
 
-    funcAnd[0] = &SubstitutionPass::andSubstitution;
-    funcAnd[1] = &SubstitutionPass::andSubstitutionRand;
+    FuncSub[0] = &SubstitutionPass::subNeg;
+    FuncSub[1] = &SubstitutionPass::subRand;
+    FuncSub[2] = &SubstitutionPass::subRand2;
 
-    funcOr[0] = &SubstitutionPass::orSubstitution;
-    funcOr[1] = &SubstitutionPass::orSubstitutionRand;
+    FuncAnd[0] = &SubstitutionPass::andSubstitution;
+    FuncAnd[1] = &SubstitutionPass::andSubstitutionRand;
 
-    funcXor[0] = &SubstitutionPass::xorSubstitution;
-    funcXor[1] = &SubstitutionPass::xorSubstitutionRand;
+    FuncOr[0] = &SubstitutionPass::orSubstitution;
+    FuncOr[1] = &SubstitutionPass::orSubstitutionRand;
+
+    FuncXor[0] = &SubstitutionPass::xorSubstitution;
+    FuncXor[1] = &SubstitutionPass::xorSubstitutionRand;
   }
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
-  bool substitute(Function *f);
+  bool substitute(Function *F);
 
-  void addNeg(BinaryOperator *bo);
-  void addDoubleNeg(BinaryOperator *bo);
-  void addRand(BinaryOperator *bo);
-  void addRand2(BinaryOperator *bo);
+  static void addNeg(BinaryOperator *Bo);
+  static void addDoubleNeg(BinaryOperator *Bo);
+  static void addRand(BinaryOperator *Bo);
+  static void addRand2(BinaryOperator *Bo);
 
-  void subNeg(BinaryOperator *bo);
-  void subRand(BinaryOperator *bo);
-  void subRand2(BinaryOperator *bo);
+  static void subNeg(BinaryOperator *Bo);
+  static void subRand(BinaryOperator *Bo);
+  static void subRand2(BinaryOperator *Bo);
 
-  void andSubstitution(BinaryOperator *bo);
-  void andSubstitutionRand(BinaryOperator *bo);
+  static void andSubstitution(BinaryOperator *Bo);
+  static void andSubstitutionRand(BinaryOperator *Bo);
 
-  void orSubstitution(BinaryOperator *bo);
-  void orSubstitutionRand(BinaryOperator *bo);
+  static void orSubstitution(BinaryOperator *Bo);
+  static void orSubstitutionRand(BinaryOperator *Bo);
 
-  void xorSubstitution(BinaryOperator *bo);
-  void xorSubstitutionRand(BinaryOperator *bo);
+  static void xorSubstitution(BinaryOperator *Bo);
+  static void xorSubstitutionRand(BinaryOperator *Bo);
 
   static bool isRequired() { return true; }
+
+private:
+  bool Enabled;
 };
 
-SubstitutionPass *createSubstitutionPass(bool flag);
+SubstitutionPass *createSubstitutionPass(bool Enabled);
 } // namespace llvm
 
 #endif

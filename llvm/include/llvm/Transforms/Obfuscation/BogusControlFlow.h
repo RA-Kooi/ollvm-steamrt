@@ -15,16 +15,19 @@
 namespace llvm {
 class BogusControlFlowPass : public PassInfoMixin<BogusControlFlowPass> {
 public:
-  bool flag;
-  BogusControlFlowPass(bool flag) { this->flag = flag; }
+  explicit BogusControlFlowPass(bool Enable) : Enabled(Enable) {}
+
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
   void bogus(Function &F);
-  void addBogusFlow(BasicBlock *basicBlock, Function &F);
+  void addBogusFlow(BasicBlock *BasicBlock, Function &F);
   bool doF(Module &M, Function &F);
   static bool isRequired() { return true; }
+
+private:
+  bool Enabled;
 };
 
-BogusControlFlowPass *createBogusControlFlow(bool flag);
+BogusControlFlowPass *createBogusControlFlow(bool Flag);
 } // namespace llvm
 
 #endif

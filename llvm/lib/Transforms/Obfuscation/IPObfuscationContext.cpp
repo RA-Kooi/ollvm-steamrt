@@ -17,27 +17,27 @@
 using namespace llvm;
 
 bool IPObfuscationContext::runOnModule(llvm::Module &M) {
-  for (auto &F : M) {
-    SurveyFunction(F);
+  for (Function &F : M) {
+    surveyFunction(F);
   }
 
-  for (auto &F : M) {
+  for (Function &F : M) {
     if (F.isDeclaration()) {
       continue;
     }
-    IPOInfo *Info = AllocaSecretSlot(F);
+    IPOInfo *Info = allocaSecretSlot(F);
 
     IPOInfoList.push_back(Info);
     IPOInfoMap[&F] = Info;
   }
 
   std::vector<Function *> NewFuncs;
-  for (auto *F : LocalFunctions) {
-    Function *NF = InsertSecretArgument(F);
+  for (Function *F : LocalFunctions) {
+    Function *NF = insertSecretArgument(F);
     NewFuncs.push_back(NF);
   }
 
-  for (auto *F : NewFuncs) {
+  for (Function *F : NewFuncs) {
     computeCallSiteSecretArgument(F);
   }
 
@@ -53,7 +53,7 @@ bool IPObfuscationContext::runOnModule(llvm::Module &M) {
   return true;
 }
 
-void IPObfuscationContext::SurveyFunction(Function &F) {
+void IPObfuscationContext::surveyFunction(Function &F) {
   if (!F.hasLocalLinkage() || F.isDeclaration()) {
     return;
   }
@@ -74,7 +74,7 @@ void IPObfuscationContext::SurveyFunction(Function &F) {
   LocalFunctions.insert(&F);
 }
 
-Function *IPObfuscationContext::InsertSecretArgument(Function *F) {
+Function *IPObfuscationContext::insertSecretArgument(Function *F) {
   FunctionType *FTy = F->getFunctionType();
   std::vector<Type *> Params;
 
@@ -84,11 +84,11 @@ Function *IPObfuscationContext::InsertSecretArgument(Function *F) {
   Params.push_back(Type::getInt32Ty(F->getContext()));
   ArgAttrVec.push_back(AttributeSet());
 
-  unsigned i = 0;
+  unsigned AttribCount = 0;
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
-       ++I, ++i) {
+       ++I, ++AttribCount) {
     Params.push_back(I->getType());
-    ArgAttrVec.push_back(PAL.getParamAttrs(i));
+    ArgAttrVec.push_back(PAL.getParamAttrs(AttribCount));
   }
 
   // Find out the new return value.
@@ -140,26 +140,26 @@ Function *IPObfuscationContext::InsertSecretArgument(Function *F) {
     // Declare these outside of the loops, so we can reuse them for the second
     // loop, which loops the varargs.
     CallSite::arg_iterator I = CS.arg_begin();
-    unsigned i = 0;
+    unsigned AttrCount = 0;
     // Loop over those operands, corresponding to the normal arguments to the
     // original function, and add those that are still alive.
-    for (unsigned e = FTy->getNumParams(); i != e; ++I, ++i) {
+    for (unsigned E = FTy->getNumParams(); AttrCount != E; ++I, ++AttrCount) {
       Args.push_back(*I);
 #if LLVM_VERSION_MAJOR >= 13
-      AttributeSet Attrs = CallPAL.getParamAttrs(i);
+      AttributeSet Attrs = CallPAL.getParamAttrs(AttrCount);
 #else
-      AttributeSet Attrs = CallPAL.getParamAttributes(i);
+      AttributeSet Attrs = CallPAL.getParamAttributes(AttrCount);
 #endif
       ArgAttrVec.push_back(Attrs);
     }
 
     // Push any varargs arguments on the list. Don't forget their attributes.
-    for (CallSite::arg_iterator E = CS.arg_end(); I != E; ++I, ++i) {
+    for (CallSite::arg_iterator E = CS.arg_end(); I != E; ++I, ++AttrCount) {
       Args.push_back(*I);
 #if LLVM_VERSION_MAJOR >= 13
-      ArgAttrVec.push_back(CallPAL.getParamAttrs(i));
+      ArgAttrVec.push_back(CallPAL.getParamAttrs(AttrCount));
 #else
-      ArgAttrVec.push_back(CallPAL.getParamAttributes(i));
+      ArgAttrVec.push_back(CallPAL.getParamAttributes(AttrCount));
 #endif
     }
 
@@ -236,7 +236,7 @@ Function *IPObfuscationContext::InsertSecretArgument(Function *F) {
 
 // Create StackSlots for Secrets and a LoadInst for caller's secret slot
 IPObfuscationContext::IPOInfo *
-IPObfuscationContext::AllocaSecretSlot(Function &F) {
+IPObfuscationContext::allocaSecretSlot(Function &F) {
   IRBuilder<> IRB(&F.getEntryBlock().front());
   IntegerType *I32Ty = Type::getInt32Ty(F.getContext());
   AllocaInst *CallerSlot = IRB.CreateAlloca(I32Ty, nullptr, "CallerSlot");
@@ -245,7 +245,7 @@ IPObfuscationContext::AllocaSecretSlot(Function &F) {
   CalleeSlot->setAlignment(Align(4));
 
   CryptoUtils RandomEngine;
-  uint32_t V = RandomEngine.get_uint32_t();
+  uint32_t V = RandomEngine.getUint32T();
   ConstantInt *SecretCI = ConstantInt::get(I32Ty, V, false);
   IRB.CreateStore(SecretCI, CallerSlot);
   LoadInst *MySecret =
@@ -291,8 +291,8 @@ void IPObfuscationContext::computeCallSiteSecretArgument(Function *F) {
   }
 }
 
-IPObfuscationContext *createIPObfuscationContextPass(bool flag) {
-  return new IPObfuscationContext(flag);
+IPObfuscationContext *llvm::createIPObfuscationContextPass(bool Enabled) {
+  return new IPObfuscationContext(Enabled);
 }
 
 INITIALIZE_PASS(IPObfuscationContext, "ipobf", "IPObfuscationContext", false,

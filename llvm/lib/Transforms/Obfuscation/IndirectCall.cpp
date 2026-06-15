@@ -8,7 +8,7 @@ using namespace llvm;
 
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
-  if (toObfuscate(flag, &F, "icall")) {
+  if (toObfuscate(Enabled, &F, "icall")) {
     doIndirctCall(F);
     return PreservedAnalyses::none();
   }
@@ -26,30 +26,30 @@ bool IndirectCallPass::doIndirctCall(Function &Fn) {
   Callees.clear();
   CallSites.clear();
 
-  NumberCallees(Fn);
+  numberCallees(Fn);
 
   if (Callees.empty()) {
     return false;
   }
 
-  uint64_t V = RandomEngine.get_uint64_t();
-  IntegerType *intType = Type::getInt32Ty(Ctx);
+  uint64_t V = RandomEngine.getUint64T();
+  IntegerType *IntType = Type::getInt32Ty(Ctx);
 
-  unsigned pointerSize =
+  unsigned PointerSize =
       Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
           PointerType::getUnqual(Fn.getContext()));
-  if (pointerSize == 8) {
-    intType = Type::getInt64Ty(Ctx);
+  if (PointerSize == 8) {
+    IntType = Type::getInt64Ty(Ctx);
   }
-  ConstantInt *EncKey = ConstantInt::get(intType, V, false);
-  ConstantInt *EncKey1 = ConstantInt::get(intType, -V, false);
+  ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
+  ConstantInt *EncKey1 = ConstantInt::get(IntType, -V, false);
 
-  Value *MySecret = ConstantInt::get(intType, 0, true);
+  Value *MySecret = ConstantInt::get(IntType, 0, true);
 
-  ConstantInt *Zero = ConstantInt::get(intType, 0);
+  ConstantInt *Zero = ConstantInt::get(IntType, 0);
   GlobalVariable *Targets = getIndirectCallees(Fn, EncKey1);
 
-  for (auto CI : CallSites) {
+  for (auto *CI : CallSites) {
     SmallVector<Value *, 8> Args;
     SmallVector<AttributeSet, 8> ArgAttrVec;
 
@@ -63,23 +63,23 @@ bool IndirectCallPass::doIndirctCall(Function &Fn) {
     ArgAttrVec.clear();
 
     Value *Idx =
-        ConstantInt::get(intType, CalleeNumbering[CB->getCalledFunction()]);
+        ConstantInt::get(IntType, CalleeNumbering[CB->getCalledFunction()]);
     Value *GEP = IRB.CreateGEP(Targets->getValueType(), Targets, {Zero, Idx});
     LoadInst *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, CI->getName());
 
     const AttributeList &CallPAL = CB->getAttributes();
-    auto I = CB->arg_begin();
-    unsigned i = 0;
+    auto *I = CB->arg_begin();
+    unsigned I1 = 0;
 
-    for (unsigned e = FTy->getNumParams(); i != e; ++I, ++i) {
+    for (unsigned E = FTy->getNumParams(); I1 != E; ++I, ++I1) {
       Args.push_back(*I);
-      AttributeSet Attrs = CallPAL.getParamAttrs(i);
+      AttributeSet Attrs = CallPAL.getParamAttrs(I1);
       ArgAttrVec.push_back(Attrs);
     }
 
-    for (auto E = CB->arg_end(); I != E; ++I, ++i) {
+    for (auto *E = CB->arg_end(); I != E; ++I, ++I1) {
       Args.push_back(*I);
-      ArgAttrVec.push_back(CallPAL.getParamAttrs(i));
+      ArgAttrVec.push_back(CallPAL.getParamAttrs(I1));
     }
 
     Value *Secret = IRB.CreateAdd(EncKey, MySecret);
@@ -102,7 +102,7 @@ GlobalVariable *IndirectCallPass::getIndirectCallees(Function &F,
   }
   // callee's address
   std::vector<Constant *> Elements;
-  for (auto Callee : Callees) {
+  for (Function *Callee : Callees) {
     Constant *CE = ConstantExpr::getBitCast(
         Callee, llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
     CE = ConstantExpr::getGetElementPtr(Type::getInt8Ty(F.getContext()), CE,
@@ -119,10 +119,10 @@ GlobalVariable *IndirectCallPass::getIndirectCallees(Function &F,
   return GV;
 }
 
-void IndirectCallPass::NumberCallees(Function &F) {
-  for (auto &BB : F) {
-    for (auto &I : BB) {
-      if (dyn_cast<CallInst>(&I)) {
+void IndirectCallPass::numberCallees(Function &F) {
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
+      if (isa<CallInst>(&I)) {
         CallSite CS(&I);
         Function *Callee = CS.getCalledFunction();
         if (Callee == nullptr) {
@@ -141,6 +141,6 @@ void IndirectCallPass::NumberCallees(Function &F) {
   }
 }
 
-IndirectCallPass *llvm::createIndirectCall(bool flag) {
-  return new IndirectCallPass(flag);
+IndirectCallPass *llvm::createIndirectCall(bool Enabled) {
+  return new IndirectCallPass(Enabled);
 }

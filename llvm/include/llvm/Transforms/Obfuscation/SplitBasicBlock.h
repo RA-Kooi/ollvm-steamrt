@@ -10,18 +10,17 @@
 namespace llvm {
 class SplitBasicBlockPass : public PassInfoMixin<SplitBasicBlockPass> {
 public:
-  bool flag;
-  SplitBasicBlockPass(bool flag) { this->flag = flag; }
-  PreservedAnalyses run(Function &F,
-                        FunctionAnalysisManager &AM);
+  explicit SplitBasicBlockPass(bool Enable) : Enabled(Enable) {}
 
-  void split(Function *f);
-  bool containsPHI(BasicBlock *BB);
-  void shuffle(std::vector<int> &vec);
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
   static bool isRequired() { return true; }
+
+private:
+  bool Enabled;
 };
 
-SplitBasicBlockPass *createSplitBasicBlock(bool flag);
+SplitBasicBlockPass *createSplitBasicBlock(bool Enabled);
 } // namespace llvm
 
 #endif // LLVM_SPLIT_BASIC_BLOCK_H

@@ -21,24 +21,24 @@ extern llvm::LLVMContext *CONTEXT;
 // so full obfuscation cannot be enabled via the command line.
 // Furthermore, Visual Studio seems unable to pass annotate to LLVM;
 // it can only control it using function names.
-extern bool obf_function_name_cmd;
+extern bool ObfFunctionNameCmd;
 
 namespace llvm {
 // Read annotation values from llvm.global.annotations
-std::string readAnnotate(Function *f);
+std::string readAnnotate(Function *F);
 
 // Determine whether obfuscation is enabled.
-bool toObfuscate(bool flag, llvm::Function *f, std::string const &attribute);
+bool toObfuscate(bool Flag, llvm::Function *F, std::string const &Attribute);
 
 void fixStack(Function &F);
 
-void FixBasicBlockConstantExpr(BasicBlock *BB);
-void FixFunctionConstantExpr(Function *Func);
-std::string rand_str(int len);
+void fixBasicBlockConstantExpr(BasicBlock *BB);
+void fixFunctionConstantExpr(Function *Func);
+std::string randStr(int Len);
 
 // LLVM-MSVC has this function, but the official LLVM version does not
 // (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).
-void LowerConstantExpr(Function &F);
+void lowerConstantExpr(Function &F);
 } // namespace llvm
 
 #endif // LLVM_UTILS_H

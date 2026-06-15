@@ -152,22 +152,22 @@
    0xFFFFFFFFUL)
 // Stats
 #define DEBUG_TYPE "CryptoUtils"
-STATISTIC(statsGetBytes, "a. Number of calls to get_bytes ()");
-STATISTIC(statsGetChar, "b. Number of calls to get_char ()");
-STATISTIC(statsGetUint8, "c. Number of calls to get_uint8_t ()");
-STATISTIC(statsGetUint32, "d. Number of calls to get_uint32_t ()");
-STATISTIC(statsGetUint64, "e. Number of calls to get_uint64_t ()");
-STATISTIC(statsGetRange, "f. Number of calls to get_range ()");
-STATISTIC(statsPopulate, "g. Number of calls to populate ()");
-STATISTIC(statsAESEncrypt, "h. Number of calls to aes_encrypt ()");
+STATISTIC(StatsGetBytes, "a. Number of calls to get_bytes ()");
+STATISTIC(StatsGetChar, "b. Number of calls to get_char ()");
+STATISTIC(StatsGetUint8, "c. Number of calls to get_uint8_t ()");
+STATISTIC(StatsGetUint32, "d. Number of calls to get_uint32_t ()");
+STATISTIC(StatsGetUint64, "e. Number of calls to get_uint64_t ()");
+STATISTIC(StatsGetRange, "f. Number of calls to get_range ()");
+STATISTIC(StatsPopulate, "g. Number of calls to populate ()");
+STATISTIC(StatsAesEncrypt, "h. Number of calls to aes_encrypt ()");
 
 using namespace llvm;
 
 namespace llvm {
-ManagedStatic<CryptoUtils> cryptoutils;
-}
+ManagedStatic<CryptoUtils> Cryptoutils;
+} // namespace llvm
 
-const uint32_t AES_RCON[10] = {
+const uint32_t AesRcon[10] = {
     0x01000000UL, 0x02000000UL, 0x04000000UL, 0x08000000UL, 0x10000000UL,
     0x20000000UL, 0x40000000UL, 0x80000000UL, 0x1b000000UL, 0x36000000UL};
 
@@ -603,7 +603,7 @@ const uint32_t AES_PRECOMP_TE4_3[256] = {
     0x2d000000UL, 0x0f000000UL, 0xb0000000UL, 0x54000000UL, 0xbb000000UL,
     0x16000000UL};
 
-const uint32_t masks[32] = {
+const uint32_t Masks[32] = {
     0x80000000UL, 0x40000000UL, 0x20000000UL, 0x10000000UL, 0x08000000UL,
     0x04000000UL, 0x02000000UL, 0x01000000UL, 0x00800000UL, 0x00400000UL,
     0x00200000UL, 0x00100000UL, 0x00080000UL, 0x00040000UL, 0x00020000UL,
@@ -612,130 +612,130 @@ const uint32_t masks[32] = {
     0x00000040UL, 0x00000020UL, 0x00000010UL, 0x00000008UL, 0x00000004UL,
     0x00000002UL, 0x00000001UL};
 
-CryptoUtils::CryptoUtils() { seeded = false; }
+CryptoUtils::CryptoUtils() { Seeded = false; }
 
-unsigned CryptoUtils::scramble32(const unsigned in, const char key[16]) {
+unsigned CryptoUtils::scramble32(const unsigned In, const char Key[16]) {
   assert(key != NULL && "CryptoUtils::scramble key=NULL");
 
-  unsigned tmpA, tmpB;
+  unsigned TmpA, TmpB;
 
   // Orr, Nathan or Adi can probably break it, but who cares?
 
   // Round 1
-  tmpA = 0x0;
-  tmpA ^= AES_PRECOMP_TE0[((in >> 24) ^ key[0]) & 0xFF];
-  tmpA ^= AES_PRECOMP_TE1[((in >> 16) ^ key[1]) & 0xFF];
-  tmpA ^= AES_PRECOMP_TE2[((in >> 8) ^ key[2]) & 0xFF];
-  tmpA ^= AES_PRECOMP_TE3[((in >> 0) ^ key[3]) & 0xFF];
+  TmpA = 0x0;
+  TmpA ^= AES_PRECOMP_TE0[((In >> 24) ^ Key[0]) & 0xFF];
+  TmpA ^= AES_PRECOMP_TE1[((In >> 16) ^ Key[1]) & 0xFF];
+  TmpA ^= AES_PRECOMP_TE2[((In >> 8) ^ Key[2]) & 0xFF];
+  TmpA ^= AES_PRECOMP_TE3[((In >> 0) ^ Key[3]) & 0xFF];
 
   // Round 2
-  tmpB = 0x0;
-  tmpB ^= AES_PRECOMP_TE0[((tmpA >> 24) ^ key[4]) & 0xFF];
-  tmpB ^= AES_PRECOMP_TE1[((tmpA >> 16) ^ key[5]) & 0xFF];
-  tmpB ^= AES_PRECOMP_TE2[((tmpA >> 8) ^ key[6]) & 0xFF];
-  tmpB ^= AES_PRECOMP_TE3[((tmpA >> 0) ^ key[7]) & 0xFF];
+  TmpB = 0x0;
+  TmpB ^= AES_PRECOMP_TE0[((TmpA >> 24) ^ Key[4]) & 0xFF];
+  TmpB ^= AES_PRECOMP_TE1[((TmpA >> 16) ^ Key[5]) & 0xFF];
+  TmpB ^= AES_PRECOMP_TE2[((TmpA >> 8) ^ Key[6]) & 0xFF];
+  TmpB ^= AES_PRECOMP_TE3[((TmpA >> 0) ^ Key[7]) & 0xFF];
 
   // Round 3
-  tmpA = 0x0;
-  tmpA ^= AES_PRECOMP_TE0[((tmpB >> 24) ^ key[8]) & 0xFF];
-  tmpA ^= AES_PRECOMP_TE1[((tmpB >> 16) ^ key[9]) & 0xFF];
-  tmpA ^= AES_PRECOMP_TE2[((tmpB >> 8) ^ key[10]) & 0xFF];
-  tmpA ^= AES_PRECOMP_TE3[((tmpB >> 0) ^ key[11]) & 0xFF];
+  TmpA = 0x0;
+  TmpA ^= AES_PRECOMP_TE0[((TmpB >> 24) ^ Key[8]) & 0xFF];
+  TmpA ^= AES_PRECOMP_TE1[((TmpB >> 16) ^ Key[9]) & 0xFF];
+  TmpA ^= AES_PRECOMP_TE2[((TmpB >> 8) ^ Key[10]) & 0xFF];
+  TmpA ^= AES_PRECOMP_TE3[((TmpB >> 0) ^ Key[11]) & 0xFF];
 
   // Round 4
-  tmpB = 0x0;
-  tmpB ^= AES_PRECOMP_TE0[((tmpA >> 24) ^ key[12]) & 0xFF];
-  tmpB ^= AES_PRECOMP_TE1[((tmpA >> 16) ^ key[13]) & 0xFF];
-  tmpB ^= AES_PRECOMP_TE2[((tmpA >> 8) ^ key[14]) & 0xFF];
-  tmpB ^= AES_PRECOMP_TE3[((tmpA >> 0) ^ key[15]) & 0xFF];
+  TmpB = 0x0;
+  TmpB ^= AES_PRECOMP_TE0[((TmpA >> 24) ^ Key[12]) & 0xFF];
+  TmpB ^= AES_PRECOMP_TE1[((TmpA >> 16) ^ Key[13]) & 0xFF];
+  TmpB ^= AES_PRECOMP_TE2[((TmpA >> 8) ^ Key[14]) & 0xFF];
+  TmpB ^= AES_PRECOMP_TE3[((TmpA >> 0) ^ Key[15]) & 0xFF];
 
-  LOAD32H(tmpA, key);
+  LOAD32H(TmpA, Key);
 
-  return tmpA ^ tmpB;
+  return TmpA ^ TmpB;
 }
 
 uint32_t CryptoUtils::scramble32(
-    uint32_t in, std::unordered_map<uint32_t /*IDX*/, uint32_t /*VAL*/> &VMap) {
-  if (VMap.find(in) == VMap.end()) {
-    uint32_t V = get_uint32_t();
-    VMap[in] = V;
+    uint32_t In, std::unordered_map<uint32_t /*IDX*/, uint32_t /*VAL*/> &VMap) {
+  if (VMap.find(In) == VMap.end()) {
+    uint32_t V = getUint32T();
+    VMap[In] = V;
     return V;
-  } else {
-    return VMap[in];
   }
+
+  return VMap[In];
 }
 
-bool CryptoUtils::prng_seed(std::string const &_seed) {
-  unsigned char s[16];
-  unsigned int i = 0;
+bool CryptoUtils::prngSeed(std::string const &InitSeed) {
+  unsigned char SeedBuf[16];
+  unsigned int I = 0;
 
   /* We accept a prefix "0x" */
-  if (!(_seed.size() == 32 || _seed.size() == 34)) {
+  if (!(InitSeed.size() == 32 || InitSeed.size() == 34)) {
     errs() << "The AES-CTR PRNG seeding mechanism is expecting a 16-byte value "
               "expressed in hexadecimal, like DEAD....BEEF\n";
     return false;
   }
 
-  seed = _seed;
+  Seed = InitSeed;
 
-  if (_seed.size() == 34) {
+  if (InitSeed.size() == 34) {
     // Assuming that the two first characters are "0x"
-    i = 2;
+    I = 2;
   }
 
-  for (unsigned int j = 0; i < _seed.size(); i += 2, j++) {
-    std::string byte = _seed.substr(i, 2);
-    s[j] = (unsigned char)(int)strtol(byte.c_str(), NULL, 16);
+  for (unsigned int J = 0; I < InitSeed.size(); I += 2, J++) {
+    std::string Byte = InitSeed.substr(I, 2);
+    SeedBuf[J] = (unsigned char)(int)strtol(Byte.c_str(), NULL, 16);
   }
 
-  // _seed is defined to be the
+  // InitSeed is defined to be the
   // key initial value
-  memcpy(key, s, 16);
-  DEBUG_WITH_TYPE("cryptoutils", dbgs()
-                                     << "CPNRG seeded with " << _seed << "\n");
+  memcpy(Key, SeedBuf, 16);
+  DEBUG_WITH_TYPE("cryptoutils",
+                  dbgs() << "CPNRG seeded with " << InitSeed << "\n");
 
   // ctr is initialized to all-zeroes
-  memset(ctr, 0, 16);
+  memset(Ctr, 0, 16);
 
   // Once the seed is there, we compute the
   // AES128 key-schedule
-  aes_compute_ks(ks, key);
+  aesComputeKs(Ks, Key);
 
-  seeded = true;
+  Seeded = true;
 
   // We are now ready to fill the pool with
   // cryptographically secure pseudo-random
   // values.
-  populate_pool();
+  populatePool();
   return true;
 }
 
 CryptoUtils::~CryptoUtils() {
   // Some wiping work here
-  memset(key, 0, 16);
-  memset(ks, 0, 44 * sizeof(uint32_t));
-  memset(ctr, 0, 16);
-  memset(pool, 0, CryptoUtils_POOL_SIZE);
+  memset(Key, 0, 16);
+  memset(Ks, 0, 44 * sizeof(uint32_t));
+  memset(Ctr, 0, 16);
+  memset(Pool, 0, CryptoUtils_POOL_SIZE);
 
-  idx = 0;
+  Idx = 0;
 }
 
-void CryptoUtils::populate_pool() {
+void CryptoUtils::populatePool() {
 
-  statsPopulate++;
+  StatsPopulate++;
 
-  for (int i = 0; i < CryptoUtils_POOL_SIZE; i += 16) {
+  for (int I = 0; I < CryptoUtils_POOL_SIZE; I += 16) {
 
     // ctr += 1
-    inc_ctr();
+    incCtr();
 
     // We then encrypt the counter
-    aes_encrypt(pool + i, ctr, ks);
+    aesEncrypt(Pool + I, Ctr, Ks);
   }
 
   // Reinitializing the index of the first
   // available pseudo-random byte
-  idx = 0;
+  Idx = 0;
 }
 
 #if defined(_WIN64) || defined(_WIN32)
@@ -787,319 +787,319 @@ private:
 };
 #endif
 
-bool CryptoUtils::prng_seed() {
+bool CryptoUtils::prngSeed() {
 
 #if defined(__linux__)
-  std::string const dev = "/dev/urandom";
-  std::ifstream devrandom(dev);
+  std::string const Dev = "/dev/urandom";
+  std::ifstream Devrandom(Dev);
 #elif defined(_WIN64) || defined(_WIN32)
-  std::string const dev = "CryptGenRandom";
-  WinDevRandom devrandom;
+  std::string const Dev = "CryptGenRandom";
+  WinDevRandom Devrandom;
 #else
-  std::string const dev = "/dev/random";
-  std::ifstream devrandom(dev);
+  std::string const Dev = "/dev/random";
+  std::ifstream Devrandom(dev);
 #endif
 
-  if (!devrandom.good()) {
-    errs() << "Cannot open " << dev << "\n";
+  if (!Devrandom.good()) {
+    errs() << "Cannot open " << Dev << "\n";
     return false;
   }
 
-  devrandom.read(key, 16);
-  auto const gc = devrandom.gcount();
-  if (gc != 16) {
-    errs() << "Cannot read enough bytes got=" << gc << " want=16";
+  Devrandom.read(Key, 16);
+  auto const Gc = Devrandom.gcount();
+  if (Gc != 16) {
+    errs() << "Cannot read enough bytes got=" << Gc << " want=16";
     return false;
   }
 
-  devrandom.close();
+  Devrandom.close();
   DEBUG_WITH_TYPE("cryptoutils",
                   dbgs() << "cryptoutils seeded with " << dev << "\n");
 
-  std::memset(ctr, 0, 16);
+  std::memset(Ctr, 0, 16);
 
   // Once the seed is there, we compute the
   // AES128 key-schedule
-  aes_compute_ks(ks, key);
+  aesComputeKs(Ks, Key);
 
-  seeded = true;
+  Seeded = true;
   return true;
 }
 
-void CryptoUtils::inc_ctr() {
-  uint64_t iseed;
+void CryptoUtils::incCtr() {
+  uint64_t Iseed;
 
-  LOAD64H(iseed, ctr + 8);
-  ++iseed;
-  STORE64H(ctr + 8, iseed);
+  LOAD64H(Iseed, Ctr + 8);
+  ++Iseed;
+  STORE64H(Ctr + 8, Iseed);
 }
 
-char *CryptoUtils::get_seed() {
+char *CryptoUtils::getSeed() {
 
-  if (seeded) {
-    return key;
-  } else {
-    return NULL;
+  if (Seeded) {
+    return Key;
   }
+
+  return NULL;
 }
 
-void CryptoUtils::get_bytes(char *buffer, const int len) {
+void CryptoUtils::getBytes(char *Buffer, const int Len) {
 
-  int sofar = 0, available = 0;
+  int Sofar = 0, Available = 0;
 
   assert(buffer != NULL && "CryptoUtils::get_bytes buffer=NULL");
   assert(len > 0 && "CryptoUtils::get_bytes len <= 0");
 
-  statsGetBytes++;
+  StatsGetBytes++;
 
-  if (len > 0) {
+  if (Len > 0) {
 
     // If the PRNG is not seeded, it the very last time to do it !
-    if (!seeded) {
-      prng_seed();
-      populate_pool();
+    if (!Seeded) {
+      prngSeed();
+      populatePool();
     }
 
     do {
-      if (idx + (len - sofar) >= CryptoUtils_POOL_SIZE) {
+      if (Idx + (Len - Sofar) >= CryptoUtils_POOL_SIZE) {
         // We don't have enough bytes ready in the pool,
         // so let's use the available ones and repopulate !
-        available = CryptoUtils_POOL_SIZE - idx;
-        memcpy(buffer + sofar, pool + idx, available);
-        sofar += available;
-        populate_pool();
+        Available = CryptoUtils_POOL_SIZE - Idx;
+        memcpy(Buffer + Sofar, Pool + Idx, Available);
+        Sofar += Available;
+        populatePool();
       } else {
-        memcpy(buffer + sofar, pool + idx, len - sofar);
-        idx += len - sofar;
+        memcpy(Buffer + Sofar, Pool + Idx, Len - Sofar);
+        Idx += Len - Sofar;
         // This will trigger a loop exit
-        sofar = len;
+        Sofar = Len;
       }
-    } while (sofar < (len - 1));
+    } while (Sofar < (Len - 1));
   }
 }
 
-uint8_t CryptoUtils::get_uint8_t() {
-  char ret;
+uint8_t CryptoUtils::getUint8T() {
+  char Ret;
 
-  statsGetUint8++;
+  StatsGetUint8++;
 
-  get_bytes(&ret, 1);
+  getBytes(&Ret, 1);
 
-  return (uint8_t)ret;
+  return (uint8_t)Ret;
 }
 
-uint16_t CryptoUtils::get_uint16_t() { return (uint16_t)get_uint64_t(); }
+uint16_t CryptoUtils::getUint16T() { return (uint16_t)getUint64T(); }
 
-char CryptoUtils::get_char() {
-  char ret;
+char CryptoUtils::getChar() {
+  char Ret;
 
-  statsGetChar++;
+  StatsGetChar++;
 
-  get_bytes(&ret, 1);
+  getBytes(&Ret, 1);
 
-  return ret;
+  return Ret;
 }
 
-uint32_t CryptoUtils::get_uint32_t() {
-  char tmp[4];
-  uint32_t ret = 0;
+uint32_t CryptoUtils::getUint32T() {
+  char Tmp[4];
+  uint32_t Ret = 0;
 
-  statsGetUint32++;
+  StatsGetUint32++;
 
-  get_bytes(tmp, 4);
+  getBytes(Tmp, 4);
 
-  LOAD32H(ret, tmp);
+  LOAD32H(Ret, Tmp);
 
-  return ret;
+  return Ret;
 }
 
-uint64_t CryptoUtils::get_uint64_t() {
-  char tmp[8];
-  uint64_t ret = 0;
+uint64_t CryptoUtils::getUint64T() {
+  char Tmp[8];
+  uint64_t Ret = 0;
 
-  statsGetUint64++;
+  StatsGetUint64++;
 
-  get_bytes(tmp, 8);
+  getBytes(Tmp, 8);
 
-  LOAD64H(ret, tmp);
+  LOAD64H(Ret, Tmp);
 
-  return ret;
+  return Ret;
 }
 
-uint32_t CryptoUtils::get_range(const uint32_t max) {
-  uint32_t log, r, mask;
+uint32_t CryptoUtils::getRange(const uint32_t Max) {
+  uint32_t Log, R, Mask;
 
-  statsGetRange++;
+  StatsGetRange++;
 
-  if (max == 0) {
+  if (Max == 0) {
     return 0;
-  } else {
-    // Computing the above power of two
-    log = 32;
-    int i = 0;
-    // This loop will terminate, as there is at least one
-    // bit set somewhere in max
-    while (!(max & masks[i++])) {
-      log -= 1;
-    }
-    mask = (0x1UL << log) - 1;
-
-    // This should loop two times in average
-    do {
-      r = get_uint32_t() & mask;
-    } while (r >= max);
-
-    return r;
   }
+
+  // Computing the above power of two
+  Log = 32;
+  int I = 0;
+  // This loop will terminate, as there is at least one
+  // bit set somewhere in max
+  while (!(Max & Masks[I++])) {
+    Log -= 1;
+  }
+  Mask = (0x1UL << Log) - 1;
+
+  // This should loop two times in average
+  do {
+    R = getUint32T() & Mask;
+  } while (R >= Max);
+
+  return R;
 }
 
-void CryptoUtils::aes_compute_ks(uint32_t *ks, const char *k) {
-  int i;
-  uint32_t *p, tmp;
+void CryptoUtils::aesComputeKs(uint32_t *Ks, const char *K) {
+  int I;
+  uint32_t *P, Tmp;
 
   assert(ks != NULL);
   assert(k != NULL);
 
-  LOAD32H(ks[0], k);
-  LOAD32H(ks[1], k + 4);
-  LOAD32H(ks[2], k + 8);
-  LOAD32H(ks[3], k + 12);
+  LOAD32H(Ks[0], K);
+  LOAD32H(Ks[1], K + 4);
+  LOAD32H(Ks[2], K + 8);
+  LOAD32H(Ks[3], K + 12);
 
-  p = ks;
-  i = 0;
+  P = Ks;
+  I = 0;
   while (1) {
-    tmp = p[3];
-    tmp = ((AES_TE4_3(BYTE(tmp, 2))) ^ (AES_TE4_2(BYTE(tmp, 1))) ^
-           (AES_TE4_1(BYTE(tmp, 0))) ^ (AES_TE4_0(BYTE(tmp, 3))));
+    Tmp = P[3];
+    Tmp = ((AES_TE4_3(BYTE(Tmp, 2))) ^ (AES_TE4_2(BYTE(Tmp, 1))) ^
+           (AES_TE4_1(BYTE(Tmp, 0))) ^ (AES_TE4_0(BYTE(Tmp, 3))));
 
-    p[4] = p[0] ^ tmp ^ AES_RCON[i];
-    p[5] = p[1] ^ p[4];
-    p[6] = p[2] ^ p[5];
-    p[7] = p[3] ^ p[6];
-    if (++i == 10) {
+    P[4] = P[0] ^ Tmp ^ AesRcon[I];
+    P[5] = P[1] ^ P[4];
+    P[6] = P[2] ^ P[5];
+    P[7] = P[3] ^ P[6];
+    if (++I == 10) {
       break;
     }
-    p += 4;
+    P += 4;
   }
 }
 
-void CryptoUtils::aes_encrypt(char *out, const char *in, const uint32_t *ks) {
-  uint32_t state0 = 0, state1 = 0, state2 = 0, state3 = 0;
-  uint32_t tmp0, tmp1, tmp2, tmp3;
-  int i;
-  uint32_t r;
+void CryptoUtils::aesEncrypt(char *Out, const char *In, const uint32_t *Ks) {
+  uint32_t State0 = 0, State1 = 0, State2 = 0, State3 = 0;
+  uint32_t Tmp0, Tmp1, Tmp2, Tmp3;
+  int I;
+  uint32_t R;
 
-  statsAESEncrypt++;
+  StatsAesEncrypt++;
 
-  r = 0;
-  LOAD32H(state0, in + 0);
-  LOAD32H(state1, in + 4);
-  LOAD32H(state2, in + 8);
-  LOAD32H(state3, in + 12);
+  R = 0;
+  LOAD32H(State0, In + 0);
+  LOAD32H(State1, In + 4);
+  LOAD32H(State2, In + 8);
+  LOAD32H(State3, In + 12);
 
-  state0 ^= ks[r + 0];
-  state1 ^= ks[r + 1];
-  state2 ^= ks[r + 2];
-  state3 ^= ks[r + 3];
+  State0 ^= Ks[R + 0];
+  State1 ^= Ks[R + 1];
+  State2 ^= Ks[R + 2];
+  State3 ^= Ks[R + 3];
 
-  i = 0;
+  I = 0;
   while (1) {
-    r += 4;
+    R += 4;
 
-    tmp0 = AES_TE0(BYTE(state0, 3)) ^ AES_TE1(BYTE(state1, 2)) ^
-           AES_TE2(BYTE(state2, 1)) ^ AES_TE3(BYTE(state3, 0)) ^ ks[r + 0];
+    Tmp0 = AES_TE0(BYTE(State0, 3)) ^ AES_TE1(BYTE(State1, 2)) ^
+           AES_TE2(BYTE(State2, 1)) ^ AES_TE3(BYTE(State3, 0)) ^ Ks[R + 0];
 
-    tmp1 = AES_TE0(BYTE(state1, 3)) ^ AES_TE1(BYTE(state2, 2)) ^
-           AES_TE2(BYTE(state3, 1)) ^ AES_TE3(BYTE(state0, 0)) ^ ks[r + 1];
+    Tmp1 = AES_TE0(BYTE(State1, 3)) ^ AES_TE1(BYTE(State2, 2)) ^
+           AES_TE2(BYTE(State3, 1)) ^ AES_TE3(BYTE(State0, 0)) ^ Ks[R + 1];
 
-    tmp2 = AES_TE0(BYTE(state2, 3)) ^ AES_TE1(BYTE(state3, 2)) ^
-           AES_TE2(BYTE(state0, 1)) ^ AES_TE3(BYTE(state1, 0)) ^ ks[r + 2];
+    Tmp2 = AES_TE0(BYTE(State2, 3)) ^ AES_TE1(BYTE(State3, 2)) ^
+           AES_TE2(BYTE(State0, 1)) ^ AES_TE3(BYTE(State1, 0)) ^ Ks[R + 2];
 
-    tmp3 = AES_TE0(BYTE(state3, 3)) ^ AES_TE1(BYTE(state0, 2)) ^
-           AES_TE2(BYTE(state1, 1)) ^ AES_TE3(BYTE(state2, 0)) ^ ks[r + 3];
+    Tmp3 = AES_TE0(BYTE(State3, 3)) ^ AES_TE1(BYTE(State0, 2)) ^
+           AES_TE2(BYTE(State1, 1)) ^ AES_TE3(BYTE(State2, 0)) ^ Ks[R + 3];
 
-    if (i == 8) {
+    if (I == 8) {
       break;
     }
-    i++;
-    state0 = tmp0;
-    state1 = tmp1;
-    state2 = tmp2;
-    state3 = tmp3;
+    I++;
+    State0 = Tmp0;
+    State1 = Tmp1;
+    State2 = Tmp2;
+    State3 = Tmp3;
   }
 
-  r += 4;
-  state0 = (AES_TE4_3(BYTE(tmp0, 3))) ^ (AES_TE4_2(BYTE(tmp1, 2))) ^
-           (AES_TE4_1(BYTE(tmp2, 1))) ^ (AES_TE4_0(BYTE(tmp3, 0))) ^ ks[r + 0];
+  R += 4;
+  State0 = (AES_TE4_3(BYTE(Tmp0, 3))) ^ (AES_TE4_2(BYTE(Tmp1, 2))) ^
+           (AES_TE4_1(BYTE(Tmp2, 1))) ^ (AES_TE4_0(BYTE(Tmp3, 0))) ^ Ks[R + 0];
 
-  state1 = (AES_TE4_3(BYTE(tmp1, 3))) ^ (AES_TE4_2(BYTE(tmp2, 2))) ^
-           (AES_TE4_1(BYTE(tmp3, 1))) ^ (AES_TE4_0(BYTE(tmp0, 0))) ^ ks[r + 1];
+  State1 = (AES_TE4_3(BYTE(Tmp1, 3))) ^ (AES_TE4_2(BYTE(Tmp2, 2))) ^
+           (AES_TE4_1(BYTE(Tmp3, 1))) ^ (AES_TE4_0(BYTE(Tmp0, 0))) ^ Ks[R + 1];
 
-  state2 = (AES_TE4_3(BYTE(tmp2, 3))) ^ (AES_TE4_2(BYTE(tmp3, 2))) ^
-           (AES_TE4_1(BYTE(tmp0, 1))) ^ (AES_TE4_0(BYTE(tmp1, 0))) ^ ks[r + 2];
+  State2 = (AES_TE4_3(BYTE(Tmp2, 3))) ^ (AES_TE4_2(BYTE(Tmp3, 2))) ^
+           (AES_TE4_1(BYTE(Tmp0, 1))) ^ (AES_TE4_0(BYTE(Tmp1, 0))) ^ Ks[R + 2];
 
-  state3 = (AES_TE4_3(BYTE(tmp3, 3))) ^ (AES_TE4_2(BYTE(tmp0, 2))) ^
-           (AES_TE4_1(BYTE(tmp1, 1))) ^ (AES_TE4_0(BYTE(tmp2, 0))) ^ ks[r + 3];
+  State3 = (AES_TE4_3(BYTE(Tmp3, 3))) ^ (AES_TE4_2(BYTE(Tmp0, 2))) ^
+           (AES_TE4_1(BYTE(Tmp1, 1))) ^ (AES_TE4_0(BYTE(Tmp2, 0))) ^ Ks[R + 3];
 
-  STORE32H(out + 0, state0);
-  STORE32H(out + 4, state1);
-  STORE32H(out + 8, state2);
-  STORE32H(out + 12, state3);
+  STORE32H(Out + 0, State0);
+  STORE32H(Out + 4, State1);
+  STORE32H(Out + 8, State2);
+  STORE32H(Out + 12, State3);
 }
 
-int CryptoUtils::sha256_process(sha256_state *md, const unsigned char *in,
-                                unsigned long inlen) {
-  unsigned long n;
-  int err;
+int CryptoUtils::sha256Process(sha256_state *Md, const unsigned char *In,
+                               unsigned long Inlen) {
+  unsigned long N;
+  int Err;
   assert(md != NULL && "CryptoUtils::sha256_process md=NULL");
   assert(in != NULL && "CryptoUtils::sha256_process in=NULL");
 
-  if (md->curlen > sizeof(md->buf)) {
+  if (Md->Curlen > sizeof(Md->Buf)) {
     return 1;
   }
-  while (inlen > 0) {
-    if (md->curlen == 0 && inlen >= 64) {
-      if ((err = sha256_compress(md, (unsigned char *)in)) != 0) {
-        return err;
+  while (Inlen > 0) {
+    if (Md->Curlen == 0 && Inlen >= 64) {
+      if ((Err = sha256Compress(Md, In)) != 0) {
+        return Err;
       }
-      md->length += 64 * 8;
-      in += 64;
-      inlen -= 64;
+      Md->Length += 64 * 8;
+      In += 64;
+      Inlen -= 64;
     } else {
-      n = MIN(inlen, (64 - md->curlen));
-      memcpy(md->buf + md->curlen, in, (size_t)n);
-      md->curlen += n;
-      in += n;
-      inlen -= n;
-      if (md->curlen == 64) {
-        if ((err = sha256_compress(md, md->buf)) != 0) {
-          return err;
+      N = MIN(Inlen, (64 - Md->Curlen));
+      memcpy(Md->Buf + Md->Curlen, In, (size_t)N);
+      Md->Curlen += N;
+      In += N;
+      Inlen -= N;
+      if (Md->Curlen == 64) {
+        if ((Err = sha256Compress(Md, Md->Buf)) != 0) {
+          return Err;
         }
-        md->length += 8 * 64;
-        md->curlen = 0;
+        Md->Length += 8 * 64;
+        Md->Curlen = 0;
       }
     }
   }
   return 0;
 }
 
-int CryptoUtils::sha256_compress(sha256_state *md, unsigned char *buf) {
+int CryptoUtils::sha256Compress(sha256_state *Md, const unsigned char *Buf) {
   uint32_t S[8], W[64], t0, t1;
-  int i;
+  int I;
 
   /* copy state into S */
-  for (i = 0; i < 8; i++) {
-    S[i] = md->state[i];
+  for (I = 0; I < 8; I++) {
+    S[I] = Md->State[I];
   }
 
   /* copy the state into 512-bits into W[0..15] */
-  for (i = 0; i < 16; i++) {
-    LOAD32H(W[i], buf + (4 * i));
+  for (I = 0; I < 16; I++) {
+    LOAD32H(W[I], Buf + (4 * I));
   }
 
   /* fill W[16..63] */
-  for (i = 16; i < 64; i++) {
-    W[i] = Gamma1(W[i - 2]) + W[i - 7] + Gamma0(W[i - 15]) + W[i - 16];
+  for (I = 16; I < 64; I++) {
+    W[I] = Gamma1(W[I - 2]) + W[I - 7] + Gamma0(W[I - 15]) + W[I - 16];
   }
 
   /* Compress */
@@ -1170,8 +1170,8 @@ int CryptoUtils::sha256_compress(sha256_state *md, unsigned char *buf) {
   RND(S[1], S[2], S[3], S[4], S[5], S[6], S[7], S[0], 63, 0xc67178f2);
 
   /* feedback */
-  for (i = 0; i < 8; i++) {
-    md->state[i] = md->state[i] + S[i];
+  for (I = 0; I < 8; I++) {
+    Md->State[I] = Md->State[I] + S[I];
   }
   return 0;
 }
@@ -1181,19 +1181,19 @@ int CryptoUtils::sha256_compress(sha256_state *md, unsigned char *buf) {
    @param md   The hash state you wish to initialize
    @return CRYPT_OK if successful
 */
-int CryptoUtils::sha256_init(sha256_state *md) {
+int CryptoUtils::sha256Init(sha256_state *Md) {
   assert(md != NULL && "CryptoUtils::sha256_init md=NULL");
 
-  md->curlen = 0;
-  md->length = 0;
-  md->state[0] = 0x6A09E667UL;
-  md->state[1] = 0xBB67AE85UL;
-  md->state[2] = 0x3C6EF372UL;
-  md->state[3] = 0xA54FF53AUL;
-  md->state[4] = 0x510E527FUL;
-  md->state[5] = 0x9B05688CUL;
-  md->state[6] = 0x1F83D9ABUL;
-  md->state[7] = 0x5BE0CD19UL;
+  Md->Curlen = 0;
+  Md->Length = 0;
+  Md->State[0] = 0x6A09E667UL;
+  Md->State[1] = 0xBB67AE85UL;
+  Md->State[2] = 0x3C6EF372UL;
+  Md->State[3] = 0xA54FF53AUL;
+  Md->State[4] = 0x510E527FUL;
+  Md->State[5] = 0x9B05688CUL;
+  Md->State[6] = 0x1F83D9ABUL;
+  Md->State[7] = 0x5BE0CD19UL;
   return 0;
 }
 
@@ -1203,59 +1203,59 @@ int CryptoUtils::sha256_init(sha256_state *md) {
    @param out [out] The destination of the hash (32 bytes)
    @return CRYPT_OK if successful
 */
-int CryptoUtils::sha256_done(sha256_state *md, unsigned char *out) {
-  int i;
+int CryptoUtils::sha256Done(sha256_state *Md, unsigned char *Out) {
+  int I;
 
   assert(md != NULL && "CryptoUtils::sha256_done md=NULL");
   assert(out != NULL && "CryptoUtils::sha256_done out=NULL");
 
-  if (md->curlen >= sizeof(md->buf)) {
+  if (Md->Curlen >= sizeof(Md->Buf)) {
     return 1;
   }
 
   /* increase the length of the message */
-  md->length += md->curlen * 8;
+  Md->Length += Md->Curlen * 8;
 
   /* append the '1' bit */
-  md->buf[md->curlen++] = (unsigned char)0x80;
+  Md->Buf[Md->Curlen++] = (unsigned char)0x80;
 
   /* if the length is currently above 56 bytes we append zeros
    * then compress.  Then we can fall back to padding zeros and length
    * encoding like normal.
    */
-  if (md->curlen > 56) {
-    while (md->curlen < 64) {
-      md->buf[md->curlen++] = (unsigned char)0;
+  if (Md->Curlen > 56) {
+    while (Md->Curlen < 64) {
+      Md->Buf[Md->Curlen++] = (unsigned char)0;
     }
-    sha256_compress(md, md->buf);
-    md->curlen = 0;
+    sha256Compress(Md, Md->Buf);
+    Md->Curlen = 0;
   }
 
   /* pad upto 56 bytes of zeroes */
-  while (md->curlen < 56) {
-    md->buf[md->curlen++] = (unsigned char)0;
+  while (Md->Curlen < 56) {
+    Md->Buf[Md->Curlen++] = (unsigned char)0;
   }
 
   /* store length */
-  STORE64H(md->buf + 56, md->length);
-  sha256_compress(md, md->buf);
+  STORE64H(Md->Buf + 56, Md->Length);
+  sha256Compress(Md, Md->Buf);
 
   /* copy output */
-  for (i = 0; i < 8; i++) {
-    STORE32H(out + (4 * i), md->state[i]);
+  for (I = 0; I < 8; I++) {
+    STORE32H(Out + (4 * I), Md->State[I]);
   }
   return 0;
 }
 
-int CryptoUtils::sha256(const char *msg, unsigned char *hash) {
-  unsigned char tmp[32];
-  sha256_state md;
+int CryptoUtils::sha256(const char *Msg, unsigned char *Hash) {
+  unsigned char Tmp[32];
+  sha256_state Md;
 
-  sha256_init(&md);
-  sha256_process(&md, (const unsigned char *)msg,
-                 (unsigned long)strlen((const char *)msg));
-  sha256_done(&md, tmp);
+  sha256Init(&Md);
+  sha256Process(&Md, (const unsigned char *)Msg,
+                (unsigned long)strlen((const char *)Msg));
+  sha256Done(&Md, Tmp);
 
-  memcpy(hash, tmp, 32);
+  memcpy(Hash, Tmp, 32);
   return 0;
 }

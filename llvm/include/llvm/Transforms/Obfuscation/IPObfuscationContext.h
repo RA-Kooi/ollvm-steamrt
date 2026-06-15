@@ -18,8 +18,19 @@ class PassRegistry;
 
 struct IPObfuscationContext : public ModulePass {
   static char ID;
-  bool flag;
 
+  IPObfuscationContext()
+      : ModulePass(ID), Enabled(false), LocalFunctions(), IPOInfoList(),
+        IPOInfoMap(), DeadSlots() {}
+
+  explicit IPObfuscationContext(bool Enable)
+      : ModulePass(ID), Enabled(Enable), LocalFunctions(), IPOInfoList(),
+        IPOInfoMap(), DeadSlots() {}
+
+  bool runOnModule(Module &M) override;
+  bool doFinalization(Module &) override;
+
+private:
   /* Inter-procedural obfuscation secret info of a function */
   struct IPOInfo {
     IPOInfo(AllocaInst *CallerAI, AllocaInst *CalleeAI, LoadInst *LI,
@@ -37,25 +48,23 @@ struct IPObfuscationContext : public ModulePass {
     ConstantInt *SecretCI;
   };
 
+private:
+  void surveyFunction(Function &F);
+  Function *insertSecretArgument(Function *F);
+  void computeCallSiteSecretArgument(Function *F);
+  IPOInfo *allocaSecretSlot(Function &F);
+  const IPOInfo *getIPOInfo(Function *F);
+
+private:
+  bool Enabled;
+
   std::set<Function *> LocalFunctions;
   SmallVector<IPOInfo *, 16> IPOInfoList;
   std::map<Function *, IPOInfo *> IPOInfoMap;
   std::vector<AllocaInst *> DeadSlots;
-
-  IPObfuscationContext() : ModulePass(ID) { this->flag = false; }
-  IPObfuscationContext(bool flag) : ModulePass(ID) { this->flag = flag; }
-
-  void SurveyFunction(Function &F);
-  Function *InsertSecretArgument(Function *F);
-  void computeCallSiteSecretArgument(Function *F);
-  IPOInfo *AllocaSecretSlot(Function &F);
-  const IPOInfo *getIPOInfo(Function *F);
-
-  bool runOnModule(Module &M) override;
-  bool doFinalization(Module &) override;
 };
 
-IPObfuscationContext *createIPObfuscationContextPass(bool flag);
+IPObfuscationContext *createIPObfuscationContextPass(bool Enabled);
 void initializeIPObfuscationContextPass(PassRegistry &Registry);
 } // namespace llvm
 

@@ -1,14 +1,95 @@
 #include "llvm/Transforms/Obfuscation/StringEncryption.h"
 
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/SHA1.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/GlobalStatus.h"
+
+#include <map>
+#include <set>
+#include <vector>
 
 #define DEBUG_TYPE "strenc"
 
 using namespace llvm;
 
-bool StringEncryptionPass::do_StrEnc(Module &M, ModuleAnalysisManager &AM) {
+namespace {
+struct EncryptedGV {
+  GlobalVariable *GV;
+  uint64_t Key;
+  uint32_t Len;
+};
+
+struct CSPEntry {
+  CSPEntry()
+      : ID(0), Offset(0), DecGV(nullptr), DecStatus(nullptr), DecFunc(nullptr) {
+  }
+  unsigned ID;
+  unsigned Offset;
+  GlobalVariable *DecGV;
+  GlobalVariable *DecStatus; // is decrypted or not
+  std::vector<uint8_t> Data;
+  std::vector<uint8_t> EncKey;
+  Function *DecFunc;
+};
+
+struct CSUser {
+  CSUser(Type *ETy, GlobalVariable *User, GlobalVariable *NewGV)
+      : Ty(ETy), GV(User), DecGV(NewGV), DecStatus(nullptr), InitFunc(nullptr) {
+  }
+  Type *Ty;
+  GlobalVariable *GV;
+  GlobalVariable *DecGV;
+  GlobalVariable *DecStatus; // is decrypted or not
+  Function *InitFunc;        // InitFunc will use decryted string to
+  // initialize DecGV
+};
+
+struct PassState {
+  PassState() = default;
+
+  CryptoUtils RandomEngine;
+  std::vector<CSPEntry *> ConstantStringPool;
+  std::map<GlobalVariable *, CSPEntry *> CSPEntryMap;
+  std::map<GlobalVariable *, CSUser *> CSUserMap;
+  GlobalVariable *EncryptedStringTable;
+  std::set<GlobalVariable *> MaybeDeadGlobalVars;
+
+  std::map<Function * /*Function*/, GlobalVariable * /*Decryption Status*/>
+      Encstatus;
+
+  bool doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled,
+                ObfuscationOptions &Options);
+  bool processConstantStringUse(bool Enabled, Function *F,
+                                ObfuscationOptions &Options);
+  void deleteUnusedGlobalVariable();
+  void getRandomBytes(std::vector<uint8_t> &Bytes, uint32_t MinSize,
+                      uint32_t MaxSize);
+};
+} // namespace
+
+static void collectConstantStringUser(GlobalVariable *CString,
+                                      std::set<GlobalVariable *> &Users);
+
+static bool isValidToEncrypt(GlobalVariable *GV);
+static Function *buildDecryptFunction(Module *M, const CSPEntry *Entry);
+static Function *buildInitFunction(Module *M, const CSUser *User);
+
+static void lowerGlobalConstant(Constant *CV, IRBuilder<> &IRB, Value *Ptr,
+                                Type *Ty);
+
+static void lowerGlobalConstantStruct(ConstantStruct *CS, IRBuilder<> &IRB,
+                                      Value *Ptr, Type *Ty);
+
+static void lowerGlobalConstantArray(ConstantArray *CA, IRBuilder<> &IRB,
+                                     Value *Ptr, Type *Ty);
+
+bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled,
+                         ObfuscationOptions &Options) {
   std::set<GlobalVariable *> ConstantStringUsers;
 
   // collect all c strings
@@ -28,8 +109,8 @@ bool StringEncryptionPass::do_StrEnc(Module &M, ModuleAnalysisManager &AM) {
         CSPEntry *Entry = new CSPEntry();
         StringRef Data = CDS->getRawDataValues();
         Entry->Data.reserve(Data.size());
-        for (unsigned i = 0; i < Data.size(); ++i) {
-          Entry->Data.push_back(static_cast<uint8_t>(Data[i]));
+        for (unsigned I = 0; I < Data.size(); ++I) {
+          Entry->Data.push_back(static_cast<uint8_t>(Data[I]));
         }
         Entry->ID = static_cast<unsigned>(ConstantStringPool.size());
         ConstantAggregateZero *ZeroInit =
@@ -53,8 +134,8 @@ bool StringEncryptionPass::do_StrEnc(Module &M, ModuleAnalysisManager &AM) {
   // encrypt those strings, build corresponding decrypt function
   for (CSPEntry *Entry : ConstantStringPool) {
     getRandomBytes(Entry->EncKey, 16, 32);
-    for (unsigned i = 0; i < Entry->Data.size(); ++i) {
-      Entry->Data[i] ^= Entry->EncKey[i % Entry->EncKey.size()];
+    for (unsigned I = 0; I < Entry->Data.size(); ++I) {
+      Entry->Data[I] ^= Entry->EncKey[I % Entry->EncKey.size()];
     }
     Entry->DecFunc = buildDecryptFunction(&M, Entry);
   }
@@ -106,12 +187,12 @@ bool StringEncryptionPass::do_StrEnc(Module &M, ModuleAnalysisManager &AM) {
   for (Function &F : M) {
     if (F.isDeclaration())
       continue;
-    Changed |= processConstantStringUse(&F);
+    Changed |= processConstantStringUse(Enabled, &F, Options);
   }
 
   for (auto &I : CSUserMap) {
     CSUser *User = I.second;
-    Changed |= processConstantStringUse(User->InitFunc);
+    Changed |= processConstantStringUse(Enabled, User->InitFunc, Options);
   }
 
   // delete unused global variables
@@ -126,17 +207,18 @@ bool StringEncryptionPass::do_StrEnc(Module &M, ModuleAnalysisManager &AM) {
 
 PreservedAnalyses StringEncryptionPass::run(Module &M,
                                             ModuleAnalysisManager &AM) {
-  if (this->flag) {
-    outs() << "[Soule] force.run.StringEncryptionPass\n";
-    if (do_StrEnc(M, AM))
+  if (Enabled) {
+    PassState State;
+    if (State.doStrEnc(M, AM, Enabled, *Options))
       return PreservedAnalyses::none();
   }
+
   return PreservedAnalyses::all();
 }
 
-void StringEncryptionPass::getRandomBytes(std::vector<uint8_t> &Bytes,
-                                          uint32_t MinSize, uint32_t MaxSize) {
-  uint32_t N = RandomEngine.get_uint32_t();
+void PassState::getRandomBytes(std::vector<uint8_t> &Bytes, uint32_t MinSize,
+                               uint32_t MaxSize) {
+  uint32_t N = RandomEngine.getUint32T();
   uint32_t Len;
 
   assert(MaxSize >= MinSize);
@@ -147,13 +229,8 @@ void StringEncryptionPass::getRandomBytes(std::vector<uint8_t> &Bytes,
     Len = MinSize + (N % (MaxSize - MinSize));
   }
 
-  char *Buffer = new char[Len];
-  RandomEngine.get_bytes(Buffer, Len);
-  for (uint32_t i = 0; i < Len; ++i) {
-    Bytes.push_back(static_cast<uint8_t>(Buffer[i]));
-  }
-
-  delete[] Buffer;
+  Bytes.resize(Len);
+  RandomEngine.getBytes(reinterpret_cast<char *>(Bytes.data()), Len);
 }
 
 //
@@ -168,8 +245,7 @@ void StringEncryptionPass::getRandomBytes(std::vector<uint8_t> &Bytes,
 //  }
 //}
 
-Function *StringEncryptionPass::buildDecryptFunction(
-    Module *M, const StringEncryptionPass::CSPEntry *Entry) {
+static Function *buildDecryptFunction(Module *M, const CSPEntry *Entry) {
   LLVMContext &Ctx = M->getContext();
   IRBuilder<> IRB(Ctx);
   FunctionType *FuncTy = FunctionType::get(
@@ -178,7 +254,7 @@ Function *StringEncryptionPass::buildDecryptFunction(
       FuncTy, GlobalValue::PrivateLinkage,
       "goron_decrypt_string_" + Twine::utohexstr(Entry->ID), M);
 
-  auto ArgIt = DecFunc->arg_begin();
+  auto *ArgIt = DecFunc->arg_begin();
   Argument *PlainString = ArgIt; // output
   ++ArgIt;
   Argument *Data = ArgIt; // input
@@ -239,8 +315,7 @@ Function *StringEncryptionPass::buildDecryptFunction(
   return DecFunc;
 }
 
-Function *StringEncryptionPass::buildInitFunction(
-    Module *M, const StringEncryptionPass::CSUser *User) {
+static Function *buildInitFunction(Module *M, const CSUser *User) {
   LLVMContext &Ctx = M->getContext();
   IRBuilder<> IRB(Ctx);
   FunctionType *FuncTy =
@@ -249,11 +324,11 @@ Function *StringEncryptionPass::buildInitFunction(
       FuncTy, GlobalValue::PrivateLinkage,
       "__global_variable_initializer_" + User->GV->getName(), M);
 
-  auto ArgIt = InitFunc->arg_begin();
-  Argument *thiz = ArgIt;
+  auto *ArgIt = InitFunc->arg_begin();
+  Argument *Thiz = ArgIt;
 
-  thiz->setName("this");
-  thiz->addAttr(Attribute::NoCapture);
+  Thiz->setName("this");
+  Thiz->addAttr(Attribute::NoCapture);
 
   // convert constant initializer into a series of instructions
   BasicBlock *Enter = BasicBlock::Create(Ctx, "Enter", InitFunc);
@@ -277,8 +352,8 @@ Function *StringEncryptionPass::buildInitFunction(
   return InitFunc;
 }
 
-void StringEncryptionPass::lowerGlobalConstant(Constant *CV, IRBuilder<> &IRB,
-                                               Value *Ptr, Type *Ty) {
+static void lowerGlobalConstant(Constant *CV, IRBuilder<> &IRB, Value *Ptr,
+                                Type *Ty) {
   if (isa<ConstantAggregateZero>(CV)) {
     IRB.CreateStore(CV, Ptr);
     return;
@@ -293,34 +368,33 @@ void StringEncryptionPass::lowerGlobalConstant(Constant *CV, IRBuilder<> &IRB,
   }
 }
 
-void StringEncryptionPass::lowerGlobalConstantArray(ConstantArray *CA,
-                                                    IRBuilder<> &IRB,
-                                                    Value *Ptr, Type *Ty) {
-  for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
-    Constant *CV = CA->getOperand(i);
-    Value *GEP = IRB.CreateGEP(Ty, Ptr, {IRB.getInt32(0), IRB.getInt32(i)});
+static void lowerGlobalConstantArray(ConstantArray *CA, IRBuilder<> &IRB,
+                                     Value *Ptr, Type *Ty) {
+  for (unsigned I = 0, E = CA->getNumOperands(); I != E; ++I) {
+    Constant *CV = CA->getOperand(I);
+    Value *GEP = IRB.CreateGEP(Ty, Ptr, {IRB.getInt32(0), IRB.getInt32(I)});
     lowerGlobalConstant(CV, IRB, GEP, CV->getType());
   }
 }
 
-void StringEncryptionPass::lowerGlobalConstantStruct(ConstantStruct *CS,
-                                                     IRBuilder<> &IRB,
-                                                     Value *Ptr, Type *Ty) {
-  for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
-    Constant *CV = CS->getOperand(i);
-    Value *GEP = IRB.CreateGEP(Ty, Ptr, {IRB.getInt32(0), IRB.getInt32(i)});
+static void lowerGlobalConstantStruct(ConstantStruct *CS, IRBuilder<> &IRB,
+                                      Value *Ptr, Type *Ty) {
+  for (unsigned I = 0, E = CS->getNumOperands(); I != E; ++I) {
+    Constant *CV = CS->getOperand(I);
+    Value *GEP = IRB.CreateGEP(Ty, Ptr, {IRB.getInt32(0), IRB.getInt32(I)});
     lowerGlobalConstant(CV, IRB, GEP, CV->getType());
   }
 }
 
-bool StringEncryptionPass::processConstantStringUse(Function *F) {
-  if (!toObfuscate(flag, F, "cse")) {
+bool PassState::processConstantStringUse(bool Enabled, Function *F,
+                                         ObfuscationOptions &Options) {
+  if (!toObfuscate(Enabled, F, "cse")) {
     return false;
   }
-  if (Options && Options->skipFunction(F->getName())) {
+  if (Options.skipFunction(F->getName())) {
     return false;
   }
-  LowerConstantExpr(*F);
+  lowerConstantExpr(*F);
   SmallPtrSet<GlobalVariable *, 16>
       DecryptedGV; // if GV has multiple use in a block, decrypt only at the
                    // first use
@@ -335,9 +409,9 @@ bool StringEncryptionPass::processConstantStringUse(Function *F) {
         continue;
       }
       if (PHINode *PHI = dyn_cast<PHINode>(&Inst)) {
-        for (unsigned int i = 0; i < PHI->getNumIncomingValues(); ++i) {
+        for (unsigned int I = 0; I < PHI->getNumIncomingValues(); ++I) {
           if (GlobalVariable *GV =
-                  dyn_cast<GlobalVariable>(PHI->getIncomingValue(i))) {
+                  dyn_cast<GlobalVariable>(PHI->getIncomingValue(I))) {
             auto Iter1 = CSPEntryMap.find(GV);
             auto Iter2 = CSUserMap.find(GV);
             if (Iter2 != CSUserMap.end()) { // GV is a constant string user
@@ -346,7 +420,7 @@ bool StringEncryptionPass::processConstantStringUse(Function *F) {
                 Inst.replaceUsesOfWith(GV, User->DecGV);
               } else {
                 Instruction *InsertPoint =
-                    PHI->getIncomingBlock(i)->getTerminator();
+                    PHI->getIncomingBlock(I)->getTerminator();
                 IRBuilder<> IRB(InsertPoint);
                 IRB.CreateCall(User->InitFunc, {User->DecGV});
                 Inst.replaceUsesOfWith(GV, User->DecGV);
@@ -360,7 +434,7 @@ bool StringEncryptionPass::processConstantStringUse(Function *F) {
                 Inst.replaceUsesOfWith(GV, Entry->DecGV);
               } else {
                 Instruction *InsertPoint =
-                    PHI->getIncomingBlock(i)->getTerminator();
+                    PHI->getIncomingBlock(I)->getTerminator();
                 IRBuilder<> IRB(InsertPoint);
 
                 Value *OutBuf = IRB.CreateBitCast(Entry->DecGV, IRB.getPtrTy());
@@ -378,9 +452,9 @@ bool StringEncryptionPass::processConstantStringUse(Function *F) {
           }
         }
       } else {
-        for (User::op_iterator op = Inst.op_begin(); op != Inst.op_end();
-             ++op) {
-          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*op)) {
+        for (User::op_iterator Op = Inst.op_begin(); Op != Inst.op_end();
+             ++Op) {
+          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*Op)) {
             auto Iter1 = CSPEntryMap.find(GV);
             auto Iter2 = CSUserMap.find(GV);
             if (Iter2 != CSUserMap.end()) {
@@ -422,8 +496,8 @@ bool StringEncryptionPass::processConstantStringUse(Function *F) {
   return Changed;
 }
 
-void StringEncryptionPass::collectConstantStringUser(
-    GlobalVariable *CString, std::set<GlobalVariable *> &Users) {
+static void collectConstantStringUser(GlobalVariable *CString,
+                                      std::set<GlobalVariable *> &Users) {
   SmallPtrSet<Value *, 16> Visited;
   SmallVector<Value *, 16> ToVisit;
 
@@ -443,7 +517,7 @@ void StringEncryptionPass::collectConstantStringUser(
   }
 }
 
-bool StringEncryptionPass::isValidToEncrypt(GlobalVariable *GV) {
+static bool isValidToEncrypt(GlobalVariable *GV) {
   if (GV->isConstant() && GV->hasInitializer()) {
     return GV->getInitializer() != nullptr;
   }
@@ -451,7 +525,7 @@ bool StringEncryptionPass::isValidToEncrypt(GlobalVariable *GV) {
   return false;
 }
 
-void StringEncryptionPass::deleteUnusedGlobalVariable() {
+void PassState::deleteUnusedGlobalVariable() {
   bool Changed = true;
   while (Changed) {
     Changed = false;
@@ -481,6 +555,6 @@ void StringEncryptionPass::deleteUnusedGlobalVariable() {
   }
 }
 
-StringEncryptionPass *llvm::createStringEncryption(bool flag) {
-  return new StringEncryptionPass(flag);
+StringEncryptionPass *llvm::createStringEncryption(bool Enabled) {
+  return new StringEncryptionPass(Enabled);
 }

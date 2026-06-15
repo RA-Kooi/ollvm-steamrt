@@ -25,7 +25,7 @@
 namespace llvm {
 
 class CryptoUtils;
-extern ManagedStatic<CryptoUtils> cryptoutils;
+extern ManagedStatic<CryptoUtils> Cryptoutils;
 
 #define BYTE(x, n) (((x) >> (8 * (n))) & 0xFF)
 
@@ -95,24 +95,24 @@ public:
   CryptoUtils();
   ~CryptoUtils();
 
-  char *get_seed();
-  void get_bytes(char *buffer, const int len);
-  char get_char();
-  bool prng_seed(std::string const &seed);
+  char *getSeed();
+  void getBytes(char *Buffer, const int Len);
+  char getChar();
+  bool prngSeed(std::string const &Seed);
 
   // Returns a uniformly distributed 8-bit value
-  uint8_t get_uint8_t();
+  uint8_t getUint8T();
   // Returns a uniformly distributed 16-bit value
-  uint16_t get_uint16_t();
+  uint16_t getUint16T();
   // Returns a uniformly distributed 32-bit value
-  uint32_t get_uint32_t();
+  uint32_t getUint32T();
   // Returns an integer uniformly distributed on [0, max[
-  uint32_t get_range(const uint32_t max);
+  uint32_t getRange(const uint32_t Max);
   // Returns a uniformly distributed 64-bit value
-  uint64_t get_uint64_t();
+  uint64_t getUint64T();
 
   // Scramble a 32-bit value depending on a 128-bit value
-  unsigned scramble32(const unsigned in, const char key[16]);
+  unsigned scramble32(const unsigned In, const char Key[16]);
 
   // Scramble32 originally uses AES to generates the mapping relationship
   // between a BB and its switchvar Hikari updates this by doing this using
@@ -120,36 +120,36 @@ public:
   // This method try to find the corresponding value from the VMap first, if not
   // then use RNG to generate,fill and return the value
   uint32_t
-  scramble32(uint32_t in,
+  scramble32(uint32_t In,
              std::unordered_map<uint32_t /*IDX*/, uint32_t /*VAL*/> &VMap);
 
-  int sha256(const char *msg, unsigned char *hash);
+  int sha256(const char *Msg, unsigned char *Hash);
 
 private:
-  uint32_t ks[44];
-  char key[16];
-  char ctr[16];
-  char pool[CryptoUtils_POOL_SIZE];
-  uint32_t idx;
-  std::string seed;
-  bool seeded;
+  uint32_t Ks[44];
+  char Key[16];
+  char Ctr[16];
+  char Pool[CryptoUtils_POOL_SIZE];
+  uint32_t Idx;
+  std::string Seed;
+  bool Seeded;
 
   typedef struct {
-    uint64_t length;
-    uint32_t state[8], curlen;
-    unsigned char buf[64];
+    uint64_t Length;
+    uint32_t State[8], Curlen;
+    unsigned char Buf[64];
   } sha256_state;
 
-  void aes_compute_ks(uint32_t *ks, const char *k);
-  void aes_encrypt(char *out, const char *in, const uint32_t *ks);
-  bool prng_seed();
-  void inc_ctr();
-  void populate_pool();
-  int sha256_done(sha256_state *md, unsigned char *out);
-  int sha256_init(sha256_state *md);
-  static int sha256_compress(sha256_state *md, unsigned char *buf);
-  int sha256_process(sha256_state *md, const unsigned char *in,
-                     unsigned long inlen);
+  void aesComputeKs(uint32_t *Ks, const char *K);
+  void aesEncrypt(char *Out, const char *In, const uint32_t *Ks);
+  bool prngSeed();
+  void incCtr();
+  void populatePool();
+  int sha256Done(sha256_state *Md, unsigned char *Out);
+  int sha256Init(sha256_state *Md);
+  static int sha256Compress(sha256_state *Md, const unsigned char *Buf);
+  int sha256Process(sha256_state *Md, const unsigned char *In,
+                    unsigned long Inlen);
 };
 } // namespace llvm
 

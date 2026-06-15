@@ -26,11 +26,12 @@ using namespace llvm;
 
 PreservedAnalyses IndirectBranchPass::run(Module &M,
                                           ModuleAnalysisManager &AM) {
-  if (this->flag) {
-    outs() << "[Soule] force.run.IndirectBranchPass\n";
+  if (this->Enabled) {
+    outs() << "force.run.IndirectBranchPass\n";
   }
+
   for (Function &Fn : M) {
-    if (toObfuscate(flag, &Fn, "ibr")) {
+    if (toObfuscate(Enabled, &Fn, "ibr")) {
 
       if (Options && Options->skipFunction(Fn.getName())) {
         continue;
@@ -49,26 +50,26 @@ PreservedAnalyses IndirectBranchPass::run(Module &M,
 
       // llvm cannot split critical edge from IndirectBrInst
       SplitAllCriticalEdges(Fn, CriticalEdgeSplittingOptions(nullptr, nullptr));
-      NumberBasicBlock(Fn);
+      numberBasicBlock(Fn);
 
       if (BBNumbering.empty()) {
         continue;
       }
 
-      uint64_t V = RandomEngine.get_uint64_t();
-      IntegerType *intType = Type::getInt32Ty(Ctx);
-      unsigned pointerSize =
+      uint64_t V = RandomEngine.getUint64T();
+      IntegerType *IntType = Type::getInt32Ty(Ctx);
+      unsigned PointerSize =
           Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
               PointerType::getUnqual(Fn.getContext())); // Soule
-      if (pointerSize == 8) {
-        intType = Type::getInt64Ty(Ctx);
+      if (PointerSize == 8) {
+        IntType = Type::getInt64Ty(Ctx);
       }
-      ConstantInt *EncKey = ConstantInt::get(intType, V, false);
-      ConstantInt *EncKey1 = ConstantInt::get(intType, -V, false);
+      ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
+      ConstantInt *EncKey1 = ConstantInt::get(IntType, -V, false);
 
-      Value *MySecret = ConstantInt::get(intType, 0, true);
+      Value *MySecret = ConstantInt::get(IntType, 0, true);
 
-      ConstantInt *Zero = ConstantInt::get(intType, 0);
+      ConstantInt *Zero = ConstantInt::get(IntType, 0);
       GlobalVariable *DestBBs = getIndirectTargets(Fn, EncKey1);
 
       for (auto &BB : Fn) {
@@ -80,8 +81,8 @@ PreservedAnalyses IndirectBranchPass::run(Module &M,
           Value *Idx;
           Value *TIdx, *FIdx;
 
-          TIdx = ConstantInt::get(intType, BBNumbering[BI->getSuccessor(0)]);
-          FIdx = ConstantInt::get(intType, BBNumbering[BI->getSuccessor(1)]);
+          TIdx = ConstantInt::get(IntType, BBNumbering[BI->getSuccessor(0)]);
+          FIdx = ConstantInt::get(IntType, BBNumbering[BI->getSuccessor(1)]);
           Idx = IRB.CreateSelect(Cond, TIdx, FIdx);
 
           Value *GEP =
@@ -104,7 +105,7 @@ PreservedAnalyses IndirectBranchPass::run(Module &M,
   return PreservedAnalyses::none();
 }
 
-void IndirectBranchPass::NumberBasicBlock(Function &F) {
+void IndirectBranchPass::numberBasicBlock(Function &F) {
   for (auto &BB : F) {
     if (auto *BI = dyn_cast<BranchInst>(BB.getTerminator())) {
       if (BI->isConditional()) {
@@ -120,12 +121,12 @@ void IndirectBranchPass::NumberBasicBlock(Function &F) {
     }
   }
 
-  long seed = RandomEngine.get_uint32_t();
-  std::default_random_engine e(seed);
-  std::shuffle(BBTargets.begin(), BBTargets.end(), e);
+  long Seed = RandomEngine.getUint32T();
+  std::default_random_engine E(Seed);
+  std::shuffle(BBTargets.begin(), BBTargets.end(), E);
 
   unsigned N = 0;
-  for (auto BB : BBTargets) {
+  for (auto *BB : BBTargets) {
     BBNumbering[BB] = N++;
   }
 }
@@ -139,7 +140,7 @@ GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
 
   // encrypt branch targets
   std::vector<Constant *> Elements;
-  for (const auto BB : BBTargets) {
+  for (auto *const BB : BBTargets) {
     Constant *CE = ConstantExpr::getBitCast(
         BlockAddress::get(BB),
         llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
@@ -159,6 +160,6 @@ GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
   return GV;
 }
 
-IndirectBranchPass *llvm::createIndirectBranch(bool flag) {
-  return new IndirectBranchPass(flag);
+IndirectBranchPass *llvm::createIndirectBranch(bool Enabled) {
+  return new IndirectBranchPass(Enabled);
 }
