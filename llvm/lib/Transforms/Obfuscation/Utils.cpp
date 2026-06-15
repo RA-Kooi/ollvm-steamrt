@@ -14,77 +14,97 @@ bool ObfFunctionNameCmd = false;
 
 std::string llvm::readAnnotate(Function *F) {
   std::string Annotation = "";
+
   /* Get annotation variable */
   GlobalVariable *Glob =
       F->getParent()->getGlobalVariable("llvm.global.annotations");
-  if (Glob != NULL) {
-    /* Get the array */
-    if (ConstantArray *Ca = dyn_cast<ConstantArray>(Glob->getInitializer())) {
-      for (unsigned I = 0; I < Ca->getNumOperands(); ++I) {
-        /* Get the struct */
-        if (ConstantStruct *StructAn =
-                dyn_cast<ConstantStruct>(Ca->getOperand(I))) {
-          if (ConstantExpr *Expr =
-                  dyn_cast<ConstantExpr>(StructAn->getOperand(0))) {
-            /*
-             * If it's a bitcast we can check if the annotation is concerning
-             * the current function
-             */
-            if (Expr->getOpcode() == Instruction::BitCast &&
-                Expr->getOperand(0) == F) {
-              ConstantExpr *Note = cast<ConstantExpr>(StructAn->getOperand(1));
-              /*
-               * If it's a GetElementPtr, that means we found the variable
-               * containing the annotations
-               */
-              if (Note->getOpcode() == Instruction::GetElementPtr) {
-                if (GlobalVariable *AnnoteStr =
-                        dyn_cast<GlobalVariable>(Note->getOperand(0))) {
-                  if (ConstantDataSequential *Data =
-                          dyn_cast<ConstantDataSequential>(
-                              AnnoteStr->getInitializer())) {
-                    if (Data->isString()) {
-                      Annotation += Data->getAsString().lower() + " ";
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+
+  if (Glob == NULL)
+    return "";
+
+  /* Get the array */
+  if (ConstantArray *Ca = dyn_cast<ConstantArray>(Glob->getInitializer())) {
+    for (unsigned I = 0; I < Ca->getNumOperands(); ++I) {
+      /* Get the struct */
+      ConstantStruct *StructAn = dyn_cast<ConstantStruct>(Ca->getOperand(I));
+      if (!StructAn)
+        continue;
+
+      ConstantExpr *Expr = dyn_cast<ConstantExpr>(StructAn->getOperand(0));
+      if (!Expr)
+        continue;
+
+      /*
+       * If it's a bitcast we can check if the annotation is concerning
+       * the current function
+       */
+      bool SelfBitCast =
+          Expr->getOpcode() == Instruction::BitCast && Expr->getOperand(0) == F;
+      if (!SelfBitCast)
+        continue;
+
+      ConstantExpr *Note = cast<ConstantExpr>(StructAn->getOperand(1));
+
+      /*
+       * If it's a GetElementPtr, that means we found the variable
+       * containing the annotations
+       */
+      if (Note->getOpcode() != Instruction::GetElementPtr)
+        continue;
+
+      GlobalVariable *AnnoteStr = dyn_cast<GlobalVariable>(Note->getOperand(0));
+      if (!AnnoteStr)
+        continue;
+
+      ConstantDataSequential *Data =
+          dyn_cast<ConstantDataSequential>(AnnoteStr->getInitializer());
+      if (!Data)
+        continue;
+
+      if (Data->isString())
+        Annotation += Data->getAsString().lower() + " ";
     }
   }
+
   return (Annotation);
 }
 
 static std::string getFunctionAnnotation(Function *F) {
   Module *M = F->getParent();
+
   GlobalVariable *GA = M->getNamedGlobal("llvm.global.annotations");
   if (!GA)
     return "";
 
-  if (ConstantArray *CA = dyn_cast<ConstantArray>(GA->getInitializer())) {
-    for (unsigned I = 0; I < CA->getNumOperands(); ++I) {
-      if (ConstantStruct *CS = dyn_cast<ConstantStruct>(CA->getOperand(I))) {
-        if (Function *AnnotatedFunction =
-                dyn_cast<Function>(CS->getOperand(0)->stripPointerCasts())) {
-          if (AnnotatedFunction == F) {
-            // The second element is a global variable for the annotation
-            // string. NOTE(Dragoon): Whatever the fuck that may mean. The
-            // original chinese comments are beyond useless. Wondering if this
-            // is LLM slop.
-            if (GlobalVariable *GV = dyn_cast<GlobalVariable>(
-                    CS->getOperand(1)->stripPointerCasts())) {
-              if (ConstantDataArray *Anno =
-                      dyn_cast<ConstantDataArray>(GV->getInitializer())) {
-                return Anno->getAsCString().str();
-              }
-            }
-          }
-        }
-      }
-    }
+  ConstantArray *CA = dyn_cast<ConstantArray>(GA->getInitializer());
+  if (!CA)
+    return "";
+
+  for (unsigned I = 0; I < CA->getNumOperands(); ++I) {
+    ConstantStruct *CS = dyn_cast<ConstantStruct>(CA->getOperand(I));
+    if (!CS)
+      continue;
+
+    Function *AnnotatedFunction =
+        dyn_cast<Function>(CS->getOperand(0)->stripPointerCasts());
+    if (!AnnotatedFunction)
+      continue;
+
+    if (AnnotatedFunction != F)
+      continue;
+
+    // The second element is a global variable for the annotation
+    // string. NOTE(Dragoon): Whatever the fuck that may mean. The
+    // original chinese comments are beyond useless. Wondering if this
+    // is LLM slop.
+    GlobalVariable *GV =
+        dyn_cast<GlobalVariable>(CS->getOperand(1)->stripPointerCasts());
+    if (!GV)
+      continue;
+
+    if (ConstantDataArray *Anno =
+            dyn_cast<ConstantDataArray>(GV->getInitializer()))
+      return Anno->getAsCString().str();
   }
 
   return "";
@@ -263,10 +283,10 @@ void llvm::lowerConstantExpr(Function &F) {
     if (isa<LandingPadInst>(I) || isa<CatchPadInst>(I) ||
         isa<CatchSwitchInst>(I) || isa<CatchReturnInst>(I))
       continue;
+
     if (auto *II = dyn_cast<IntrinsicInst>(I)) {
-      if (II->getIntrinsicID() == Intrinsic::eh_typeid_for) {
+      if (II->getIntrinsicID() == Intrinsic::eh_typeid_for)
         continue;
-      }
     }
 
     for (unsigned int J = 0; J < I->getNumOperands(); ++J) {
@@ -283,23 +303,29 @@ void llvm::lowerConstantExpr(Function &F) {
     if (PHINode *PHI = dyn_cast<PHINode>(Instr)) {
       for (unsigned int I = 0; I < PHI->getNumIncomingValues(); ++I) {
         Instruction *TI = PHI->getIncomingBlock(I)->getTerminator();
-        if (ConstantExpr *CE =
-                dyn_cast<ConstantExpr>(PHI->getIncomingValue(I))) {
-          Instruction *NewInst = CE->getAsInstruction();
-          NewInst->insertBefore(TI);
-          PHI->setIncomingValue(I, NewInst);
-          WorkList.insert(NewInst);
-        }
+
+        ConstantExpr *CE = dyn_cast<ConstantExpr>(PHI->getIncomingValue(I));
+        if (!CE)
+          continue;
+
+        Instruction *NewInst = CE->getAsInstruction();
+        NewInst->insertBefore(TI);
+        PHI->setIncomingValue(I, NewInst);
+        WorkList.insert(NewInst);
       }
-    } else {
-      for (unsigned int I = 0; I < Instr->getNumOperands(); ++I) {
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Instr->getOperand(I))) {
-          Instruction *NewInst = CE->getAsInstruction();
-          NewInst->insertBefore(Instr);
-          Instr->replaceUsesOfWith(CE, NewInst);
-          WorkList.insert(NewInst);
-        }
-      }
+
+      continue;
+    }
+
+    for (unsigned int I = 0; I < Instr->getNumOperands(); ++I) {
+      ConstantExpr *CE = dyn_cast<ConstantExpr>(Instr->getOperand(I));
+      if (!CE)
+        continue;
+
+      Instruction *NewInst = CE->getAsInstruction();
+      NewInst->insertBefore(Instr);
+      Instr->replaceUsesOfWith(CE, NewInst);
+      WorkList.insert(NewInst);
     }
   }
 }
