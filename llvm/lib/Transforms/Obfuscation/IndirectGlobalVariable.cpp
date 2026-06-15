@@ -32,7 +32,7 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
                                                   ModuleAnalysisManager &AM) {
 
   for (Function &Fn : M) {
-    if (!toObfuscate(IgvEnabled, &Fn, "igv")) {
+    if (!shouldObfuscate(IgvEnabled, &Fn, "igv")) {
       continue;
     }
 

@@ -392,7 +392,7 @@ static void lowerGlobalConstantStruct(ConstantStruct *CS, IRBuilder<> &IRB,
 
 bool PassState::processConstantStringUse(bool Enabled, Function *F,
                                          ObfuscationOptions &Options) {
-  if (!toObfuscate(Enabled, F, "cse")) {
+  if (!shouldObfuscate(Enabled, F, "cse")) {
     return false;
   }
   if (Options.skipFunction(F->getName())) {

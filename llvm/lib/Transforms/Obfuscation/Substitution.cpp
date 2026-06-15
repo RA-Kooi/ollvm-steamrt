@@ -54,7 +54,7 @@ PreservedAnalyses SubstitutionPass::run(Function &F,
   }
 
   // Do we obfuscate
-  if (toObfuscate(SubEnabled, &F, "sub")) {
+  if (shouldObfuscate(SubEnabled, &F, "sub")) {
     substitute(&F);
     return PreservedAnalyses::none();
   }

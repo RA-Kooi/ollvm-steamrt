@@ -32,7 +32,7 @@ static cl::opt<bool> IbrEnabled("ibr", cl::init(false),
 PreservedAnalyses IndirectBranchPass::run(Module &M,
                                           ModuleAnalysisManager &AM) {
   for (Function &Fn : M) {
-    if (toObfuscate(IbrEnabled, &Fn, "ibr")) {
+    if (shouldObfuscate(IbrEnabled, &Fn, "ibr")) {
 
       if (Options && Options->skipFunction(Fn.getName())) {
         continue;

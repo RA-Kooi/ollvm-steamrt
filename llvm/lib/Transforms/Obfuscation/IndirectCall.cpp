@@ -13,7 +13,7 @@ static cl::opt<bool> IcallEnabled("icall", cl::init(false),
 
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
-  if (toObfuscate(IcallEnabled, &F, "icall")) {
+  if (shouldObfuscate(IcallEnabled, &F, "icall")) {
     doIndirctCall(F);
     return PreservedAnalyses::none();
   }
