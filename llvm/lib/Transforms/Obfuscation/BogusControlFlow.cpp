@@ -152,23 +152,25 @@ STATISTIC(FinalNumBasicBlocks,
           "f. Final number of basic blocks in this module");
 
 // Options for the pass
-const int defaultObfRate = 70, defaultObfTime = 2;
+constexpr int DefaultObfRate = 70;
+constexpr int DefaultObfTime = 2;
 
 static cl::opt<int>
     ObfProbRate("bcf_prob",
                 cl::desc("Choose the probability [%] each basic blocks will be "
                          "obfuscated by the -bcf pass"),
-                cl::value_desc("probability rate"), cl::init(defaultObfRate),
+                cl::value_desc("probability rate"), cl::init(DefaultObfRate),
                 cl::Optional);
 
 static cl::opt<int>
     ObfTimes("bcf_loop",
              cl::desc("Choose how many time the -bcf pass loop on a function"),
-             cl::value_desc("number of times"), cl::init(defaultObfTime),
+             cl::value_desc("number of times"), cl::init(DefaultObfTime),
              cl::Optional);
 
-BasicBlock *createAlteredBasicBlock(BasicBlock *basicBlock,
-                                    const Twine &Name = "gen", Function *F = 0);
+static BasicBlock *createAlteredBasicBlock(BasicBlock *BasicBlock,
+                                           const Twine &Name = "gen",
+                                           Function *F = 0);
 
 PreservedAnalyses BogusControlFlowPass::run(Function &F,
                                             FunctionAnalysisManager &AM) {
@@ -184,7 +186,7 @@ PreservedAnalyses BogusControlFlowPass::run(Function &F,
     return PreservedAnalyses::all();
   }
   // If fla annotations
-  if (toObfuscate(flag, &F, "bcf")) {
+  if (toObfuscate(Enabled, &F, "bcf")) {
     bogus(F);
     doF(*F.getParent(), F);
     return PreservedAnalyses::none();
@@ -195,9 +197,8 @@ PreservedAnalyses BogusControlFlowPass::run(Function &F,
 void BogusControlFlowPass::bogus(Function &F) {
   // For statistics and debug
   ++NumFunction;
-  int NumBasicBlocks = 0;
-  bool firstTime = true; // First time we do the loop in this function
-  bool hasBeenModified = false;
+  bool FirstTime = true; // First time we do the loop in this function
+  bool HasBeenModified = false;
   DEBUG_WITH_TYPE("opt",
                   errs() << "bcf: Started on function " << F.getName() << "\n");
   DEBUG_WITH_TYPE("opt",
@@ -206,14 +207,14 @@ void BogusControlFlowPass::bogus(Function &F) {
     DEBUG_WITH_TYPE("opt", errs() << "bcf: Incorrect value,"
                                   << " probability rate set to default value: "
                                   << defaultObfRate << " \n");
-    ObfProbRate = defaultObfRate;
+    ObfProbRate = DefaultObfRate;
   }
   DEBUG_WITH_TYPE("opt", errs() << "bcf: How many times: " << ObfTimes << "\n");
   if (ObfTimes <= 0) {
     DEBUG_WITH_TYPE("opt", errs() << "bcf: Incorrect value,"
                                   << " must be greater than 1. Set to default: "
                                   << defaultObfTime << " \n");
-    ObfTimes = defaultObfTime;
+    ObfTimes = DefaultObfTime;
   }
   NumTimesOnFunctions = ObfTimes;
   int NumObfTimes = ObfTimes;
@@ -225,48 +226,47 @@ void BogusControlFlowPass::bogus(Function &F) {
                                   << ", before the pass:\n");
     DEBUG_WITH_TYPE("cfg", F.viewCFG());
     // Put all the function's block in a list
-    std::list<BasicBlock *> basicBlocks;
-    for (Function::iterator i = F.begin(); i != F.end(); ++i) {
-      basicBlocks.push_back(&*i);
+    std::list<BasicBlock *> BasicBlocks;
+    for (Function::iterator I = F.begin(); I != F.end(); ++I) {
+      BasicBlocks.push_back(&*I);
     }
     DEBUG_WITH_TYPE(
         "gen", errs() << "bcf: Iterating on the Function's Basic Blocks\n");
 
-    while (!basicBlocks.empty()) {
-      NumBasicBlocks++;
+    while (!BasicBlocks.empty()) {
       // Basic Blocks' selection
-      if ((int)llvm::cryptoutils->get_range(100) <= ObfProbRate) {
+      if ((int)llvm::Cryptoutils->getRange(100) <= ObfProbRate) {
         DEBUG_WITH_TYPE("opt", errs() << "bcf: Block " << NumBasicBlocks
                                       << " selected. \n");
-        hasBeenModified = true;
+        HasBeenModified = true;
         ++NumModifiedBasicBlocks;
         NumAddedBasicBlocks += 3;
         FinalNumBasicBlocks += 3;
         // Add bogus flow to the given Basic Block (see description)
-        BasicBlock *basicBlock = basicBlocks.front();
-        addBogusFlow(basicBlock, F);
+        BasicBlock *BasicBlock = BasicBlocks.front();
+        addBogusFlow(BasicBlock, F);
       } else {
         DEBUG_WITH_TYPE("opt", errs() << "bcf: Block " << NumBasicBlocks
                                       << " not selected.\n");
       }
       // remove the block from the list
-      basicBlocks.pop_front();
+      BasicBlocks.pop_front();
 
-      if (firstTime) { // first time we iterate on this function
+      if (FirstTime) { // first time we iterate on this function
         ++InitNumBasicBlocks;
         ++FinalNumBasicBlocks;
       }
     } // end of while(!basicBlocks.empty())
     DEBUG_WITH_TYPE("gen",
                     errs() << "bcf: End of function " << F.getName() << "\n");
-    if (hasBeenModified) { // if the function has been modified
+    if (HasBeenModified) { // if the function has been modified
       DEBUG_WITH_TYPE("cfg", errs() << "bcf: Function " << F.getName()
                                     << ", after the pass: \n");
       DEBUG_WITH_TYPE("cfg", F.viewCFG());
     } else {
       DEBUG_WITH_TYPE("cfg", errs() << "bcf: Function's not been modified \n");
     }
-    firstTime = false;
+    FirstTime = false;
   } while (--NumObfTimes > 0);
 }
 
@@ -275,7 +275,7 @@ void BogusControlFlowPass::bogus(Function &F) {
  * Add bogus flow to a given basic block, according to the header's
  * description
  */
-void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
+void BogusControlFlowPass::addBogusFlow(BasicBlock *Basic, Function &F) {
   // Split the block: first part with only the phi nodes and debug info and
   // terminator
   //                  created by splitBasicBlock. (-> No instruction)
@@ -285,30 +285,30 @@ void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
   // and so on for the first block. We have to let the phi nodes in the first
   // part, because they actually are updated in the second part according to
   // them.
-  BasicBlock::iterator i1 = basicBlock->begin();
-  if (basicBlock->getFirstNonPHIOrDbgOrLifetime())
-    i1 = (BasicBlock::iterator)basicBlock->getFirstNonPHIOrDbgOrLifetime();
-  if (basicBlock->getFirstNonPHI()->isEHPad())
+  BasicBlock::iterator I1 = Basic->begin();
+  if (Basic->getFirstNonPHIOrDbgOrLifetime())
+    I1 = (BasicBlock::iterator)Basic->getFirstNonPHIOrDbgOrLifetime();
+  if (Basic->getFirstNonPHI()->isEHPad())
     return;
   // Fix Verifier.cpp: "CatchPadInst not the first non-PHI instruction in the
   // block.", "The unwind destination does not have an exception handling
   // instruction!"
-  Twine *var;
-  var = new Twine("originalBB");
-  BasicBlock *originalBB = basicBlock->splitBasicBlock(i1, *var);
+  Twine *Var;
+  Var = new Twine("originalBB");
+  BasicBlock *OriginalBb = Basic->splitBasicBlock(I1, *Var);
   DEBUG_WITH_TYPE("gen", errs()
                              << "bcf: First and original basic blocks: ok\n");
 
-  // Creating the altered basic block on which the first basicBlock will jump
-  Twine *var3 = new Twine("alteredBB");
-  BasicBlock *alteredBB = createAlteredBasicBlock(originalBB, *var3, &F);
+  // Creating the altered basic block on which the first Basic block will jump
+  Twine *Var3 = new Twine("alteredBB");
+  BasicBlock *AlteredBb = createAlteredBasicBlock(OriginalBb, *Var3, &F);
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Altered basic block: ok\n");
 
   // Now that all the blocks are created,
   // we modify the terminators to adjust the control flow.
 
-  alteredBB->getTerminator()->eraseFromParent();
-  basicBlock->getTerminator()->eraseFromParent();
+  AlteredBb->getTerminator()->eraseFromParent();
+  Basic->getTerminator()->eraseFromParent();
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Terminator removed from the altered"
                                 << " and first basic blocks\n");
 
@@ -320,20 +320,20 @@ void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Value LHS and RHS created\n");
 
   // The always true condition. End of the first block
-  Twine *var4 = new Twine("condition");
-  FCmpInst *condition = new FCmpInst(InsertPosition(basicBlock),
-                                     FCmpInst::FCMP_TRUE, LHS, RHS, *var4);
+  Twine *Var4 = new Twine("condition");
+  FCmpInst *Condition =
+      new FCmpInst(InsertPosition(Basic), FCmpInst::FCMP_TRUE, LHS, RHS, *Var4);
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Always true condition created\n");
 
   // Jump to the original basic block if the condition is true or
   // to the altered block if false.
-  BranchInst::Create(originalBB, alteredBB, (Value *)condition, basicBlock);
+  BranchInst::Create(OriginalBb, AlteredBb, (Value *)Condition, Basic);
   DEBUG_WITH_TYPE(
       "gen",
       errs() << "bcf: Terminator instruction in first basic block: ok\n");
 
   // The altered block loop back on the original one.
-  BranchInst::Create(originalBB, alteredBB);
+  BranchInst::Create(OriginalBb, AlteredBb);
   DEBUG_WITH_TYPE(
       "gen", errs() << "bcf: Terminator instruction in altered block: ok\n");
 
@@ -344,23 +344,23 @@ void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
   //  but this will be obfuscated too;) )
 
   // iterate on instruction just before the terminator of the originalBB
-  BasicBlock::iterator i = originalBB->end();
+  BasicBlock::iterator I = OriginalBb->end();
 
   // Split at this point (we only want the terminator in the second part)
-  Twine *var5 = new Twine("originalBBpart2");
-  BasicBlock *originalBBpart2 = originalBB->splitBasicBlock(--i, *var5);
+  Twine *Var5 = new Twine("originalBBpart2");
+  BasicBlock *OriginalBBpart2 = OriginalBb->splitBasicBlock(--I, *Var5);
   DEBUG_WITH_TYPE("gen",
                   errs() << "bcf: Terminator part of the original basic block"
                          << " is isolated\n");
   // the first part go either on the return statement or on the begining
   // of the altered block.. So we erase the terminator created when splitting.
-  originalBB->getTerminator()->eraseFromParent();
+  OriginalBb->getTerminator()->eraseFromParent();
   // We add at the end a new always true condition
-  Twine *var6 = new Twine("condition2");
-  FCmpInst *condition2 = new FCmpInst(InsertPosition(originalBB),
-                                      CmpInst::FCMP_TRUE, LHS, RHS, *var6);
-  BranchInst::Create(originalBBpart2, alteredBB, (Value *)condition2,
-                     originalBB);
+  Twine *Var6 = new Twine("condition2");
+  FCmpInst *Condition2 = new FCmpInst(InsertPosition(OriginalBb),
+                                      CmpInst::FCMP_TRUE, LHS, RHS, *Var6);
+  BranchInst::Create(OriginalBBpart2, AlteredBb, (Value *)Condition2,
+                     OriginalBb);
   DEBUG_WITH_TYPE("gen", errs()
                              << "bcf: Terminator original basic block: ok\n");
   DEBUG_WITH_TYPE("gen", errs() << "bcf: End of addBogusFlow().\n");
@@ -376,52 +376,52 @@ void BogusControlFlowPass::addBogusFlow(BasicBlock *basicBlock, Function &F) {
  * debug locations are adjusted to fit in the cloned basic block and
  * behave nicely.
  */
-BasicBlock *createAlteredBasicBlock(BasicBlock *basicBlock, const Twine &Name,
+BasicBlock *createAlteredBasicBlock(BasicBlock *Basic, const Twine &Name,
                                     Function *F) {
   // Useful to remap the informations concerning instructions.
   ValueToValueMapTy VMap;
-  // basicBlock->dump();
-  BasicBlock *alteredBB = llvm::CloneBasicBlock(basicBlock, VMap, Name, F);
+  // Basic->dump();
+  BasicBlock *AlteredBb = llvm::CloneBasicBlock(Basic, VMap, Name, F);
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Original basic block cloned\n");
   // Remap operands.
-  BasicBlock::iterator ji = basicBlock->begin();
-  for (BasicBlock::iterator i = alteredBB->begin(), e = alteredBB->end();
-       i != e; ++i) {
+  BasicBlock::iterator Ji = Basic->begin();
+  for (BasicBlock::iterator I = AlteredBb->begin(), E = AlteredBb->end();
+       I != E; ++I) {
     // Loop over the operands of the instruction
-    for (User::op_iterator opi = i->op_begin(), ope = i->op_end(); opi != ope;
-         ++opi) {
+    for (User::op_iterator Opi = I->op_begin(), Ope = I->op_end(); Opi != Ope;
+         ++Opi) {
       // get the value for the operand
-      Value *v = MapValue(*opi, VMap, RF_None, 0);
-      if (v != 0) {
-        *opi = v;
+      Value *V = MapValue(*Opi, VMap, RF_None, 0);
+      if (V != 0) {
+        *Opi = V;
         DEBUG_WITH_TYPE("gen", errs()
                                    << "bcf: Value's operand has been setted\n");
       }
     }
     DEBUG_WITH_TYPE("gen", errs() << "bcf: Operands remapped\n");
     // Remap phi nodes' incoming blocks.
-    if (PHINode *pn = dyn_cast<PHINode>(i)) {
-      for (unsigned j = 0, e = pn->getNumIncomingValues(); j != e; ++j) {
-        Value *v = MapValue(pn->getIncomingBlock(j), VMap, RF_None, 0);
-        if (v != 0) {
-          pn->setIncomingBlock(j, cast<BasicBlock>(v));
+    if (PHINode *Pn = dyn_cast<PHINode>(I)) {
+      for (unsigned J = 0, E = Pn->getNumIncomingValues(); J != E; ++J) {
+        Value *V = MapValue(Pn->getIncomingBlock(J), VMap, RF_None, 0);
+        if (V != 0) {
+          Pn->setIncomingBlock(J, cast<BasicBlock>(V));
         }
       }
     }
     DEBUG_WITH_TYPE("gen", errs() << "bcf: PHINodes remapped\n");
     // Remap attached metadata.
     SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
-    i->getAllMetadata(MDs);
+    I->getAllMetadata(MDs);
     DEBUG_WITH_TYPE("gen", errs() << "bcf: Metadatas remapped\n");
     // important for compiling with DWARF, using option -g.
-    i->setDebugLoc(ji->getDebugLoc());
-    ji++;
+    I->setDebugLoc(Ji->getDebugLoc());
+    Ji++;
     DEBUG_WITH_TYPE("gen", errs()
                                << "bcf: Debug information location setted\n");
 
   } // The instructions' informations are now all correct
 
-  for (auto I = alteredBB->begin(), E = alteredBB->end(); I != E;) {
+  for (auto I = AlteredBb->begin(), E = AlteredBb->end(); I != E;) {
     Instruction *Instr = &*I++;
     if (isa<DbgInfoIntrinsic>(Instr))
       Instr->eraseFromParent();
@@ -437,152 +437,152 @@ BasicBlock *createAlteredBasicBlock(BasicBlock *basicBlock, const Twine &Name,
 
   // add random instruction in the middle of the bloc. This part can be
   // improve
-  for (BasicBlock::iterator i = alteredBB->begin(), e = alteredBB->end();
-       i != e; ++i) {
+  for (BasicBlock::iterator I = AlteredBb->begin(), E = AlteredBb->end();
+       I != E; ++I) {
     // in the case we find binary operator, we modify slightly this part by
     // randomly insert some instructions
-    if (i->isBinaryOp()) { // binary instructions
-      unsigned opcode = i->getOpcode();
-      Instruction *op, *op1 = NULL;
-      Twine *var = new Twine("_");
+    if (I->isBinaryOp()) { // binary instructions
+      unsigned Opcode = I->getOpcode();
+      Instruction *Op, *Op1 = NULL;
+      Twine *Var = new Twine("_");
       // treat differently float or int
       // Binary int
-      if (opcode == Instruction::Add || opcode == Instruction::Sub ||
-          opcode == Instruction::Mul || opcode == Instruction::UDiv ||
-          opcode == Instruction::SDiv || opcode == Instruction::URem ||
-          opcode == Instruction::SRem || opcode == Instruction::Shl ||
-          opcode == Instruction::LShr || opcode == Instruction::AShr ||
-          opcode == Instruction::And || opcode == Instruction::Or ||
-          opcode == Instruction::Xor) {
-        for (int random = (int)llvm::cryptoutils->get_range(10); random < 10;
-             ++random) {
-          switch (llvm::cryptoutils->get_range(4)) { // to improve
-          case 0:                                    // do nothing
+      if (Opcode == Instruction::Add || Opcode == Instruction::Sub ||
+          Opcode == Instruction::Mul || Opcode == Instruction::UDiv ||
+          Opcode == Instruction::SDiv || Opcode == Instruction::URem ||
+          Opcode == Instruction::SRem || Opcode == Instruction::Shl ||
+          Opcode == Instruction::LShr || Opcode == Instruction::AShr ||
+          Opcode == Instruction::And || Opcode == Instruction::Or ||
+          Opcode == Instruction::Xor) {
+        for (int Random = (int)llvm::Cryptoutils->getRange(10); Random < 10;
+             ++Random) {
+          switch (llvm::Cryptoutils->getRange(4)) { // to improve
+          case 0:                                   // do nothing
             break;
           case 1:
-            op = BinaryOperator::CreateNeg(i->getOperand(0), *var, &*i);
-            op1 = BinaryOperator::Create(Instruction::Add, op, i->getOperand(1),
-                                         "gen", &*i);
+            Op = BinaryOperator::CreateNeg(I->getOperand(0), *Var, &*I);
+            Op1 = BinaryOperator::Create(Instruction::Add, Op, I->getOperand(1),
+                                         "gen", &*I);
             break;
           case 2:
-            op1 = BinaryOperator::Create(Instruction::Sub, i->getOperand(0),
-                                         i->getOperand(1), *var, &*i);
-            op = BinaryOperator::Create(Instruction::Mul, op1, i->getOperand(1),
-                                        "gen", &*i);
+            Op1 = BinaryOperator::Create(Instruction::Sub, I->getOperand(0),
+                                         I->getOperand(1), *Var, &*I);
+            Op = BinaryOperator::Create(Instruction::Mul, Op1, I->getOperand(1),
+                                        "gen", &*I);
             break;
           case 3:
-            op = BinaryOperator::Create(Instruction::Shl, i->getOperand(0),
-                                        i->getOperand(1), *var, &*i);
+            Op = BinaryOperator::Create(Instruction::Shl, I->getOperand(0),
+                                        I->getOperand(1), *Var, &*I);
             break;
           }
         }
       }
       // Binary float
-      if (opcode == Instruction::FAdd || opcode == Instruction::FSub ||
-          opcode == Instruction::FMul || opcode == Instruction::FDiv ||
-          opcode == Instruction::FRem) {
-        for (int random = (int)llvm::cryptoutils->get_range(10); random < 10;
-             ++random) {
-          switch (llvm::cryptoutils->get_range(3)) { // can be improved
-          case 0:                                    // do nothing
+      if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
+          Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
+          Opcode == Instruction::FRem) {
+        for (int Random = (int)llvm::Cryptoutils->getRange(10); Random < 10;
+             ++Random) {
+          switch (llvm::Cryptoutils->getRange(3)) { // can be improved
+          case 0:                                   // do nothing
             break;
           case 1:
-            op = UnaryOperator::CreateFNeg(i->getOperand(0), *var, &*i);
-            op1 = BinaryOperator::Create(Instruction::FAdd, op,
-                                         i->getOperand(1), "gen", &*i);
+            Op = UnaryOperator::CreateFNeg(I->getOperand(0), *Var, &*I);
+            Op1 = BinaryOperator::Create(Instruction::FAdd, Op,
+                                         I->getOperand(1), "gen", &*I);
             break;
           case 2:
-            op = BinaryOperator::Create(Instruction::FSub, i->getOperand(0),
-                                        i->getOperand(1), *var, &*i);
-            op1 = BinaryOperator::Create(Instruction::FMul, op,
-                                         i->getOperand(1), "gen", &*i);
+            Op = BinaryOperator::Create(Instruction::FSub, I->getOperand(0),
+                                        I->getOperand(1), *Var, &*I);
+            Op1 = BinaryOperator::Create(Instruction::FMul, Op,
+                                         I->getOperand(1), "gen", &*I);
             break;
           }
         }
       }
-      if (opcode == Instruction::ICmp) { // Condition (with int)
-        ICmpInst *currentI = (ICmpInst *)(&i);
-        switch (llvm::cryptoutils->get_range(3)) { // must be improved
-        case 0:                                    // do nothing
+      if (Opcode == Instruction::ICmp) { // Condition (with int)
+        ICmpInst *CurrentI = (ICmpInst *)(&I);
+        switch (llvm::Cryptoutils->getRange(3)) { // must be improved
+        case 0:                                   // do nothing
           break;
         case 1:
-          currentI->swapOperands();
+          CurrentI->swapOperands();
           break;
         case 2: // randomly change the predicate
-          switch (llvm::cryptoutils->get_range(10)) {
+          switch (llvm::Cryptoutils->getRange(10)) {
           case 0:
-            currentI->setPredicate(ICmpInst::ICMP_EQ);
+            CurrentI->setPredicate(ICmpInst::ICMP_EQ);
             break; // equal
           case 1:
-            currentI->setPredicate(ICmpInst::ICMP_NE);
+            CurrentI->setPredicate(ICmpInst::ICMP_NE);
             break; // not equal
           case 2:
-            currentI->setPredicate(ICmpInst::ICMP_UGT);
+            CurrentI->setPredicate(ICmpInst::ICMP_UGT);
             break; // unsigned greater than
           case 3:
-            currentI->setPredicate(ICmpInst::ICMP_UGE);
+            CurrentI->setPredicate(ICmpInst::ICMP_UGE);
             break; // unsigned greater or equal
           case 4:
-            currentI->setPredicate(ICmpInst::ICMP_ULT);
+            CurrentI->setPredicate(ICmpInst::ICMP_ULT);
             break; // unsigned less than
           case 5:
-            currentI->setPredicate(ICmpInst::ICMP_ULE);
+            CurrentI->setPredicate(ICmpInst::ICMP_ULE);
             break; // unsigned less or equal
           case 6:
-            currentI->setPredicate(ICmpInst::ICMP_SGT);
+            CurrentI->setPredicate(ICmpInst::ICMP_SGT);
             break; // signed greater than
           case 7:
-            currentI->setPredicate(ICmpInst::ICMP_SGE);
+            CurrentI->setPredicate(ICmpInst::ICMP_SGE);
             break; // signed greater or equal
           case 8:
-            currentI->setPredicate(ICmpInst::ICMP_SLT);
+            CurrentI->setPredicate(ICmpInst::ICMP_SLT);
             break; // signed less than
           case 9:
-            currentI->setPredicate(ICmpInst::ICMP_SLE);
+            CurrentI->setPredicate(ICmpInst::ICMP_SLE);
             break; // signed less or equal
           }
           break;
         }
       }
-      if (opcode == Instruction::FCmp) { // Conditions (with float)
-        FCmpInst *currentI = (FCmpInst *)(&i);
-        switch (llvm::cryptoutils->get_range(3)) { // must be improved
-        case 0:                                    // do nothing
+      if (Opcode == Instruction::FCmp) { // Conditions (with float)
+        FCmpInst *CurrentI = (FCmpInst *)(&I);
+        switch (llvm::Cryptoutils->getRange(3)) { // must be improved
+        case 0:                                   // do nothing
           break;
         case 1:
-          currentI->swapOperands();
+          CurrentI->swapOperands();
           break;
         case 2: // randomly change the predicate
-          switch (llvm::cryptoutils->get_range(10)) {
+          switch (llvm::Cryptoutils->getRange(10)) {
           case 0:
-            currentI->setPredicate(FCmpInst::FCMP_OEQ);
+            CurrentI->setPredicate(FCmpInst::FCMP_OEQ);
             break; // ordered and equal
           case 1:
-            currentI->setPredicate(FCmpInst::FCMP_ONE);
+            CurrentI->setPredicate(FCmpInst::FCMP_ONE);
             break; // ordered and operands are unequal
           case 2:
-            currentI->setPredicate(FCmpInst::FCMP_UGT);
+            CurrentI->setPredicate(FCmpInst::FCMP_UGT);
             break; // unordered or greater than
           case 3:
-            currentI->setPredicate(FCmpInst::FCMP_UGE);
+            CurrentI->setPredicate(FCmpInst::FCMP_UGE);
             break; // unordered, or greater than, or equal
           case 4:
-            currentI->setPredicate(FCmpInst::FCMP_ULT);
+            CurrentI->setPredicate(FCmpInst::FCMP_ULT);
             break; // unordered or less than
           case 5:
-            currentI->setPredicate(FCmpInst::FCMP_ULE);
+            CurrentI->setPredicate(FCmpInst::FCMP_ULE);
             break; // unordered, or less than, or equal
           case 6:
-            currentI->setPredicate(FCmpInst::FCMP_OGT);
+            CurrentI->setPredicate(FCmpInst::FCMP_OGT);
             break; // ordered and greater than
           case 7:
-            currentI->setPredicate(FCmpInst::FCMP_OGE);
+            CurrentI->setPredicate(FCmpInst::FCMP_OGE);
             break; // ordered and greater than or equal
           case 8:
-            currentI->setPredicate(FCmpInst::FCMP_OLT);
+            CurrentI->setPredicate(FCmpInst::FCMP_OLT);
             break; // ordered and less than
           case 9:
-            currentI->setPredicate(FCmpInst::FCMP_OLE);
+            CurrentI->setPredicate(FCmpInst::FCMP_OLE);
             break; // ordered or less than, or equal
           }
           break;
@@ -590,7 +590,7 @@ BasicBlock *createAlteredBasicBlock(BasicBlock *basicBlock, const Twine &Name,
       }
     }
   }
-  return alteredBB;
+  return AlteredBb;
 } // end of createAlteredBasicBlock()
 
 /* doFinalization
@@ -610,38 +610,38 @@ bool BogusControlFlowPass::doF(Module &M, Function &F) {
   DEBUG_WITH_TYPE("gen", errs() << "bcf: Starting doFinalization...\n");
 
   //  The global values
-  Twine *varX = new Twine("x");
-  Twine *varY = new Twine("y");
-  Value *x1 = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false);
-  Value *y1 = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false);
+  Twine *VarX = new Twine("x");
+  Twine *VarY = new Twine("y");
+  Value *X1 = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false);
+  Value *Y1 = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false);
 
-  GlobalVariable *x =
+  GlobalVariable *X =
       new GlobalVariable(M, Type::getInt32Ty(M.getContext()), false,
-                         GlobalValue::CommonLinkage, (Constant *)x1, *varX);
-  GlobalVariable *y =
+                         GlobalValue::CommonLinkage, (Constant *)X1, *VarX);
+  GlobalVariable *Y =
       new GlobalVariable(M, Type::getInt32Ty(M.getContext()), false,
-                         GlobalValue::CommonLinkage, (Constant *)y1, *varY);
+                         GlobalValue::CommonLinkage, (Constant *)Y1, *VarY);
 
-  std::vector<Instruction *> toEdit, toDelete;
-  BinaryOperator *op, *op1 = NULL;
-  LoadInst *opX, *opY;
-  ICmpInst *condition, *condition2;
+  std::vector<Instruction *> ToEdit, ToDelete;
+  BinaryOperator *Op, *Op1 = NULL;
+  LoadInst *OpX, *OpY;
+  ICmpInst *Condition, *Condition2;
   // Looking for the conditions and branches to transform
 
-  for (Function::iterator fi = F.begin(), fe = F.end(); fi != fe; ++fi) {
+  for (Function::iterator Fi = F.begin(), Fe = F.end(); Fi != Fe; ++Fi) {
     // fi->setName("");
-    Instruction *tbb = fi->getTerminator();
-    if (tbb->getOpcode() == Instruction::Br) {
-      BranchInst *br = (BranchInst *)(tbb);
-      if (br->isConditional()) {
-        FCmpInst *cond = (FCmpInst *)br->getCondition();
-        unsigned opcode = cond->getOpcode();
-        if (opcode == Instruction::FCmp) {
-          if (cond->getPredicate() == FCmpInst::FCMP_TRUE) {
+    Instruction *Tbb = Fi->getTerminator();
+    if (Tbb->getOpcode() == Instruction::Br) {
+      BranchInst *Br = (BranchInst *)(Tbb);
+      if (Br->isConditional()) {
+        FCmpInst *Cond = (FCmpInst *)Br->getCondition();
+        unsigned Opcode = Cond->getOpcode();
+        if (Opcode == Instruction::FCmp) {
+          if (Cond->getPredicate() == FCmpInst::FCMP_TRUE) {
             DEBUG_WITH_TYPE("gen", errs()
                                        << "bcf: an always true predicate !\n");
-            toDelete.push_back(cond); // The condition
-            toEdit.push_back(tbb);    // The branch using the condition
+            ToDelete.push_back(Cond); // The condition
+            ToEdit.push_back(Tbb);    // The branch using the condition
           }
         }
       }
@@ -654,41 +654,41 @@ bool BogusControlFlowPass::doF(Module &M, Function &F) {
   }
 
   // Replacing all the branches we found
-  for (std::vector<Instruction *>::iterator i = toEdit.begin();
-       i != toEdit.end(); ++i) {
+  for (std::vector<Instruction *>::iterator I = ToEdit.begin();
+       I != ToEdit.end(); ++I) {
     // if y < 10 || x*(x+1) % 2 == 0
-    opX = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)x, "", (*i));
-    opY = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)y, "", (*i));
+    OpX = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)X, "", (*I));
+    OpY = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)Y, "", (*I));
 
-    op = BinaryOperator::Create(
-        Instruction::Sub, (Value *)opX,
-        ConstantInt::get(Type::getInt32Ty(M.getContext()), 1, false), "", (*i));
-    op1 = BinaryOperator::Create(Instruction::Mul, (Value *)opX, op, "", (*i));
-    op = BinaryOperator::Create(
-        Instruction::URem, op1,
-        ConstantInt::get(Type::getInt32Ty(M.getContext()), 2, false), "", (*i));
-    condition = new ICmpInst(
-        (*i), ICmpInst::ICMP_EQ, op,
+    Op = BinaryOperator::Create(
+        Instruction::Sub, (Value *)OpX,
+        ConstantInt::get(Type::getInt32Ty(M.getContext()), 1, false), "", (*I));
+    Op1 = BinaryOperator::Create(Instruction::Mul, (Value *)OpX, Op, "", (*I));
+    Op = BinaryOperator::Create(
+        Instruction::URem, Op1,
+        ConstantInt::get(Type::getInt32Ty(M.getContext()), 2, false), "", (*I));
+    Condition = new ICmpInst(
+        (*I), ICmpInst::ICMP_EQ, Op,
         ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false));
-    condition2 = new ICmpInst(
-        (*i), ICmpInst::ICMP_SLT, opY,
+    Condition2 = new ICmpInst(
+        (*I), ICmpInst::ICMP_SLT, OpY,
         ConstantInt::get(Type::getInt32Ty(M.getContext()), 10, false));
-    op1 = BinaryOperator::Create(Instruction::Or, (Value *)condition,
-                                 (Value *)condition2, "", (*i));
+    Op1 = BinaryOperator::Create(Instruction::Or, (Value *)Condition,
+                                 (Value *)Condition2, "", (*I));
 
-    BranchInst::Create(((BranchInst *)*i)->getSuccessor(0),
-                       ((BranchInst *)*i)->getSuccessor(1), (Value *)op1,
-                       ((BranchInst *)*i)->getParent());
+    BranchInst::Create(((BranchInst *)*I)->getSuccessor(0),
+                       ((BranchInst *)*I)->getSuccessor(1), (Value *)Op1,
+                       ((BranchInst *)*I)->getParent());
     DEBUG_WITH_TYPE("gen", errs() << "bcf: Erase branch instruction:"
                                   << *((BranchInst *)*i) << "\n");
-    (*i)->eraseFromParent(); // erase the branch
+    (*I)->eraseFromParent(); // erase the branch
   }
   // Erase all the associated conditions we found
-  for (std::vector<Instruction *>::iterator i = toDelete.begin();
-       i != toDelete.end(); ++i) {
+  for (std::vector<Instruction *>::iterator I = ToDelete.begin();
+       I != ToDelete.end(); ++I) {
     DEBUG_WITH_TYPE("gen", errs() << "bcf: Erase condition instruction:"
                                   << *((Instruction *)*i) << "\n");
-    (*i)->eraseFromParent();
+    (*I)->eraseFromParent();
   }
 
   // Only for debug
@@ -702,6 +702,6 @@ bool BogusControlFlowPass::doF(Module &M, Function &F) {
   return true;
 }
 
-BogusControlFlowPass *llvm::createBogusControlFlow(bool flag) {
-  return new BogusControlFlowPass(flag);
+BogusControlFlowPass *llvm::createBogusControlFlow(bool Flag) {
+  return new BogusControlFlowPass(Flag);
 }

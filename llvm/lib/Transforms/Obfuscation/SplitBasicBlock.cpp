@@ -34,39 +34,42 @@ static cl::opt<int> SplitNum("split_num", cl::init(3),
 
 // It seems that NEW PM does not currently support this type of transmission.
 
+static void split(Function *F);
+static bool containsPHI(BasicBlock *BB);
+static void shuffle(std::vector<int> &Vec);
+
 PreservedAnalyses SplitBasicBlockPass::run(Function &F,
                                            FunctionAnalysisManager &AM) {
-  Function *tmp = &F;
-  if (toObfuscate(flag, tmp, "split")) {
-    split(tmp);
+  if (toObfuscate(Enabled, &F, "split")) {
+    split(&F);
     ++Split;
     return PreservedAnalyses::none();
   }
   return PreservedAnalyses::all();
 }
 
-void SplitBasicBlockPass::split(Function *f) {
-  std::vector<BasicBlock *> origBB;
+static void split(Function *F) {
+  std::vector<BasicBlock *> OrigBb;
   // Save all basic blocks to prevent splitting while iterating over new basic
   // blocks.
-  for (Function::iterator I = f->begin(), IE = f->end(); I != IE; ++I) {
-    origBB.push_back(&*I);
+  for (Function::iterator I = F->begin(), IE = F->end(); I != IE; ++I) {
+    OrigBb.push_back(&*I);
   }
 
   // All basic blocks of the traversal function.
-  for (std::vector<BasicBlock *>::iterator I = origBB.begin(),
-                                           IE = origBB.end();
+  for (std::vector<BasicBlock *>::iterator I = OrigBb.begin(),
+                                           IE = OrigBb.end();
        I != IE; ++I) {
-    BasicBlock *curr = *I;
+    BasicBlock *Curr = *I;
 
     // outs() << "\033[1;32mSplitNum : " << SplitNum << "\033[0m\n";
     // outs() << "\033[1;32mBasicBlock Size : " << curr->size() << "\033[0m\n";
 
-    int splitN = SplitNum;
+    int SplitN = SplitNum;
 
     // No need to divide a basic block into only one instruction
     // Indivisible basic blocks containing PHI instructions
-    if (curr->size() < 2 || containsPHI(curr)) {
+    if (Curr->size() < 2 || containsPHI(Curr)) {
       /* outs() << "\033[0;33mThis BasicBlock is lower then two or had PIH "
                 "Instruction!\033[0m\n"; */
       continue;
@@ -76,50 +79,50 @@ void SplitBasicBlockPass::split(Function *f) {
     // passed in is greater than or equal to the size of the basic block
     // itself, then modify the number of splits to the size of the basic block
     // minus one.
-    if ((size_t)splitN >= curr->size()) {
+    if ((size_t)SplitN >= Curr->size()) {
       /* outs()
           << "\033[0;33mSplitNum is bigger then currBasicBlock's size\033[0m\n";
 
       outs() << "\033[0;33mSo SplitNum Now is BasicBlock's size -1 : "
              << (curr->size() - 1) << "\033[0m\n"; */
 
-      splitN = curr->size() - 1;
+      SplitN = Curr->size() - 1;
     } else {
       // outs() << "\033[1;32msplitNum Now is " << splitN << "\033[0m\n";
     }
 
     // Generate splits point
-    std::vector<int> test;
-    for (unsigned i = 1; i < curr->size(); ++i) {
-      test.push_back(i);
+    std::vector<int> Test;
+    for (unsigned I = 1; I < Curr->size(); ++I) {
+      Test.push_back(I);
     }
 
     // Shuffle
-    if (test.size() != 1) {
-      shuffle(test);
-      std::sort(test.begin(), test.begin() + splitN);
+    if (Test.size() != 1) {
+      shuffle(Test);
+      std::sort(Test.begin(), Test.begin() + SplitN);
     }
 
     // Segment
-    BasicBlock::iterator it = curr->begin();
-    BasicBlock *toSplit = curr;
-    int last = 0;
-    for (int i = 0; i < splitN; ++i) {
-      if (toSplit->size() < 2) {
+    BasicBlock::iterator It = Curr->begin();
+    BasicBlock *ToSplit = Curr;
+    int Last = 0;
+    for (int I = 0; I < SplitN; ++I) {
+      if (ToSplit->size() < 2) {
         continue;
       }
-      for (int j = 0; j < test[i] - last; ++j) {
-        ++it;
+      for (int J = 0; J < Test[I] - Last; ++J) {
+        ++It;
       }
-      last = test[i];
-      toSplit = toSplit->splitBasicBlock(it, toSplit->getName() + ".split");
+      Last = Test[I];
+      ToSplit = ToSplit->splitBasicBlock(It, ToSplit->getName() + ".split");
     }
 
     ++Split;
   }
 }
 
-bool SplitBasicBlockPass::containsPHI(BasicBlock *BB) {
+static bool containsPHI(BasicBlock *BB) {
   for (Instruction &I : *BB) {
     if (isa<PHINode>(&I)) {
       return true;
@@ -128,13 +131,13 @@ bool SplitBasicBlockPass::containsPHI(BasicBlock *BB) {
   return false;
 }
 
-void SplitBasicBlockPass::shuffle(std::vector<int> &vec) {
-  int n = vec.size();
-  for (int i = n - 1; i > 0; --i) {
-    std::swap(vec[i], vec[cryptoutils->get_uint32_t() % (i + 1)]);
+static void shuffle(std::vector<int> &Vec) {
+  int N = Vec.size();
+  for (int I = N - 1; I > 0; --I) {
+    std::swap(Vec[I], Vec[Cryptoutils->getUint32T() % (I + 1)]);
   }
 }
 
-SplitBasicBlockPass *llvm::createSplitBasicBlock(bool flag) {
-  return new SplitBasicBlockPass(flag);
+SplitBasicBlockPass *llvm::createSplitBasicBlock(bool Enabled) {
+  return new SplitBasicBlockPass(Enabled);
 }

@@ -9,7 +9,8 @@
 namespace llvm {
 struct ObfuscationOptions {
   explicit ObfuscationOptions(const Twine &FileName);
-  explicit ObfuscationOptions();
+  ObfuscationOptions();
+
   bool skipFunction(const Twine &FName);
   void dump();
 
@@ -18,11 +19,11 @@ struct ObfuscationOptions {
   bool EnableIndirectGV;
   bool EnableCFF;
   bool EnableCSE;
-  bool hasFilter;
+  bool HasFilter;
 
 private:
   void init();
-  void handleRoot(yaml::Node *n);
+  void handleRoot(yaml::Node *N);
   bool parseOptions(const Twine &FileName);
   std::set<std::string> FunctionFilter;
 };

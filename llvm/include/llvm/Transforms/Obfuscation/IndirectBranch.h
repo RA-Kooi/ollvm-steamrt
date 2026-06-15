@@ -18,24 +18,26 @@
 namespace llvm {
 class IndirectBranchPass : public PassInfoMixin<IndirectBranchPass> {
 public:
-  bool flag;
+  explicit IndirectBranchPass(bool Enable)
+      : Enabled(Enable), Options(new ObfuscationOptions()), BBNumbering(),
+        BBTargets(), RandomEngine() {}
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  static bool isRequired() { return true; }
+
+private:
+  void numberBasicBlock(Function &F);
+  GlobalVariable *getIndirectTargets(Function &F, ConstantInt *EncKey);
+
+private:
+  bool Enabled;
   ObfuscationOptions *Options;
   std::map<BasicBlock *, unsigned> BBNumbering;
   std::vector<BasicBlock *> BBTargets; // all conditional branch targets
   CryptoUtils RandomEngine;
-
-  IndirectBranchPass(bool flag) {
-    this->flag = flag;
-    this->Options = new ObfuscationOptions;
-  }
-
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-  void NumberBasicBlock(Function &F);
-  GlobalVariable *getIndirectTargets(Function &F, ConstantInt *EncKey);
-  static bool isRequired() { return true; }
 };
 
-IndirectBranchPass *createIndirectBranch(bool flag);
+IndirectBranchPass *createIndirectBranch(bool Enabled);
 } // namespace llvm
 
 #endif // LLVM_INDIRECTBRANCH_H

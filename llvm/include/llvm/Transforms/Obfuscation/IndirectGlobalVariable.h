@@ -19,24 +19,26 @@ namespace llvm {
 class IndirectGlobalVariablePass
     : public PassInfoMixin<IndirectGlobalVariablePass> {
 public:
-  bool flag;
+  explicit IndirectGlobalVariablePass(bool Enable)
+      : Enabled(Enable), Options(new ObfuscationOptions()), GVNumbering(),
+        GlobalVariables(), RandomEngine() {}
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  static bool isRequired() { return true; }
+
+private:
+  void numberGlobalVariable(Function &F);
+  GlobalVariable *getIndirectGlobalVariables(Function &F, ConstantInt *EncKey);
+
+private:
+  bool Enabled;
   ObfuscationOptions *Options;
   std::map<GlobalVariable *, unsigned> GVNumbering;
   std::vector<GlobalVariable *> GlobalVariables;
   CryptoUtils RandomEngine;
-
-  IndirectGlobalVariablePass(bool flag) {
-    this->flag = flag;
-    this->Options = new ObfuscationOptions;
-  }
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-
-  void NumberGlobalVariable(Function &F);
-  GlobalVariable *getIndirectGlobalVariables(Function &F, ConstantInt *EncKey);
-  static bool isRequired() { return true; }
 };
 
-IndirectGlobalVariablePass *createIndirectGlobalVariable(bool flag);
+IndirectGlobalVariablePass *createIndirectGlobalVariable(bool Enabled);
 } // namespace llvm
 
 #endif // LLVM_INDIRECTGLOBALVARIABLE_H

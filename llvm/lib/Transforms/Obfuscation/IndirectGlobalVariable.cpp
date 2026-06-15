@@ -27,11 +27,11 @@ using namespace llvm;
 PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
                                                   ModuleAnalysisManager &AM) {
 
-  if (this->flag) {
+  if (this->Enabled) {
     outs() << "force.run.IndirectGlobalVariablePass\n";
   }
   for (Function &Fn : M) {
-    if (!toObfuscate(flag, &Fn, "igv")) {
+    if (!toObfuscate(Enabled, &Fn, "igv")) {
       continue;
     }
 
@@ -44,30 +44,30 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
     GVNumbering.clear();
     GlobalVariables.clear();
 
-    LowerConstantExpr(Fn);
-    NumberGlobalVariable(Fn);
+    lowerConstantExpr(Fn);
+    numberGlobalVariable(Fn);
 
     if (GlobalVariables.empty()) {
       continue;
     }
 
-    uint64_t V = RandomEngine.get_uint64_t();
-    IntegerType *intType = Type::getInt32Ty(Ctx);
+    uint64_t V = RandomEngine.getUint64T();
+    IntegerType *IntType = Type::getInt32Ty(Ctx);
 
-    unsigned pointerSize =
+    unsigned PointerSize =
         Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
             PointerType::getUnqual(Fn.getContext()));
 
-    if (pointerSize == 8) {
-      intType = Type::getInt64Ty(Ctx);
+    if (PointerSize == 8) {
+      IntType = Type::getInt64Ty(Ctx);
     }
 
-    ConstantInt *EncKey = ConstantInt::get(intType, V, false);
-    ConstantInt *EncKey1 = ConstantInt::get(intType, -V, false);
+    ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
+    ConstantInt *EncKey1 = ConstantInt::get(IntType, -V, false);
 
-    Value *MySecret = ConstantInt::get(intType, 0, true);
+    Value *MySecret = ConstantInt::get(IntType, 0, true);
 
-    ConstantInt *Zero = ConstantInt::get(intType, 0);
+    ConstantInt *Zero = ConstantInt::get(IntType, 0);
     GlobalVariable *GVars = getIndirectGlobalVariables(Fn, EncKey1);
 
     for (inst_iterator I = inst_begin(Fn), E = inst_end(Fn); I != E; ++I) {
@@ -79,17 +79,17 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
         continue;
       }
       if (PHINode *PHI = dyn_cast<PHINode>(Inst)) {
-        for (unsigned int i = 0; i < PHI->getNumIncomingValues(); ++i) {
-          Value *val = PHI->getIncomingValue(i);
-          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(val)) {
+        for (unsigned int I = 0; I < PHI->getNumIncomingValues(); ++I) {
+          Value *Val = PHI->getIncomingValue(I);
+          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Val)) {
             if (GVNumbering.count(GV) == 0) {
               continue;
             }
 
-            Instruction *IP = PHI->getIncomingBlock(i)->getTerminator();
+            Instruction *IP = PHI->getIncomingBlock(I)->getTerminator();
             IRBuilder<> IRB(IP);
 
-            Value *Idx = ConstantInt::get(intType, GVNumbering[GV]);
+            Value *Idx = ConstantInt::get(IntType, GVNumbering[GV]);
             Value *GEP =
                 IRB.CreateGEP(GVars->getValueType(), GVars, {Zero, Idx});
             LoadInst *EncGVAddr =
@@ -100,19 +100,19 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
                 IRB.CreateGEP(Type::getInt8Ty(Ctx), EncGVAddr, Secret);
             GVAddr = IRB.CreateBitCast(GVAddr, GV->getType());
             GVAddr->setName("IndGV0_");
-            PHI->setIncomingValue(i, GVAddr);
+            PHI->setIncomingValue(I, GVAddr);
           }
         }
       } else {
-        for (User::op_iterator op = Inst->op_begin(); op != Inst->op_end();
-             ++op) {
-          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*op)) {
+        for (User::op_iterator Op = Inst->op_begin(); Op != Inst->op_end();
+             ++Op) {
+          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*Op)) {
             if (GVNumbering.count(GV) == 0) {
               continue;
             }
 
             IRBuilder<> IRB(Inst);
-            Value *Idx = ConstantInt::get(intType, GVNumbering[GV]);
+            Value *Idx = ConstantInt::get(IntType, GVNumbering[GV]);
             Value *GEP =
                 IRB.CreateGEP(GVars->getValueType(), GVars, {Zero, Idx});
             LoadInst *EncGVAddr =
@@ -132,15 +132,15 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
   return PreservedAnalyses::none();
 }
 
-void IndirectGlobalVariablePass::NumberGlobalVariable(Function &F) {
+void IndirectGlobalVariablePass::numberGlobalVariable(Function &F) {
   for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-    for (User::op_iterator op = (*I).op_begin(); op != (*I).op_end(); ++op) {
-      Value *val = *op;
-      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(val)) {
+    for (User::op_iterator Op = (*I).op_begin(); Op != (*I).op_end(); ++Op) {
+      Value *Val = *Op;
+      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Val)) {
         if (!GV->isThreadLocal() && GVNumbering.count(GV) == 0 &&
             !GV->isDLLImportDependent()) {
           GVNumbering[GV] = GlobalVariables.size();
-          GlobalVariables.push_back((GlobalVariable *)val);
+          GlobalVariables.push_back((GlobalVariable *)Val);
         }
       }
     }
@@ -156,7 +156,7 @@ IndirectGlobalVariablePass::getIndirectGlobalVariables(Function &F,
     return GV;
 
   std::vector<Constant *> Elements;
-  for (auto GVar : GlobalVariables) {
+  for (GlobalVariable *GVar : GlobalVariables) {
     Constant *CE = ConstantExpr::getBitCast(
         GVar, llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
     CE = ConstantExpr::getGetElementPtr(Type::getInt8Ty(F.getContext()), CE,
@@ -175,6 +175,6 @@ IndirectGlobalVariablePass::getIndirectGlobalVariables(Function &F,
   return GV;
 }
 
-IndirectGlobalVariablePass *llvm::createIndirectGlobalVariable(bool flag) {
-  return new IndirectGlobalVariablePass(flag);
+IndirectGlobalVariablePass *llvm::createIndirectGlobalVariable(bool Enabled) {
+  return new IndirectGlobalVariablePass(Enabled);
 }

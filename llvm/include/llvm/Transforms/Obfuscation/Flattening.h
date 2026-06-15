@@ -9,13 +9,16 @@
 namespace llvm {
 class FlatteningPass : public PassInfoMixin<FlatteningPass> {
 public:
-  bool flag;
-  FlatteningPass(bool flag) { this->flag = flag; }
+  explicit FlatteningPass(bool Enable) : Enabled(Enable) {}
+
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
-  bool flatten(Function *f);
   static bool isRequired() { return true; }
+
+private:
+  bool Enabled;
 };
-FlatteningPass *createFlattening(bool flag);
+
+FlatteningPass *createFlattening(bool Enabled);
 } // namespace llvm
 
 #endif // LLVM_FLATTENING_H

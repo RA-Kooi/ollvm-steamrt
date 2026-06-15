@@ -10,41 +10,41 @@
 using namespace llvm;
 
 LLVMContext *CONTEXT = nullptr;
-bool obf_function_name_cmd = false;
+bool ObfFunctionNameCmd = false;
 
-std::string llvm::readAnnotate(Function *f) {
-  std::string annotation = "";
+std::string llvm::readAnnotate(Function *F) {
+  std::string Annotation = "";
   /* Get annotation variable */
-  GlobalVariable *glob =
-      f->getParent()->getGlobalVariable("llvm.global.annotations");
-  if (glob != NULL) {
+  GlobalVariable *Glob =
+      F->getParent()->getGlobalVariable("llvm.global.annotations");
+  if (Glob != NULL) {
     /* Get the array */
-    if (ConstantArray *ca = dyn_cast<ConstantArray>(glob->getInitializer())) {
-      for (unsigned i = 0; i < ca->getNumOperands(); ++i) {
+    if (ConstantArray *Ca = dyn_cast<ConstantArray>(Glob->getInitializer())) {
+      for (unsigned I = 0; I < Ca->getNumOperands(); ++I) {
         /* Get the struct */
-        if (ConstantStruct *structAn =
-                dyn_cast<ConstantStruct>(ca->getOperand(i))) {
-          if (ConstantExpr *expr =
-                  dyn_cast<ConstantExpr>(structAn->getOperand(0))) {
+        if (ConstantStruct *StructAn =
+                dyn_cast<ConstantStruct>(Ca->getOperand(I))) {
+          if (ConstantExpr *Expr =
+                  dyn_cast<ConstantExpr>(StructAn->getOperand(0))) {
             /*
              * If it's a bitcast we can check if the annotation is concerning
              * the current function
              */
-            if (expr->getOpcode() == Instruction::BitCast &&
-                expr->getOperand(0) == f) {
-              ConstantExpr *note = cast<ConstantExpr>(structAn->getOperand(1));
+            if (Expr->getOpcode() == Instruction::BitCast &&
+                Expr->getOperand(0) == F) {
+              ConstantExpr *Note = cast<ConstantExpr>(StructAn->getOperand(1));
               /*
                * If it's a GetElementPtr, that means we found the variable
                * containing the annotations
                */
-              if (note->getOpcode() == Instruction::GetElementPtr) {
-                if (GlobalVariable *annoteStr =
-                        dyn_cast<GlobalVariable>(note->getOperand(0))) {
-                  if (ConstantDataSequential *data =
+              if (Note->getOpcode() == Instruction::GetElementPtr) {
+                if (GlobalVariable *AnnoteStr =
+                        dyn_cast<GlobalVariable>(Note->getOperand(0))) {
+                  if (ConstantDataSequential *Data =
                           dyn_cast<ConstantDataSequential>(
-                              annoteStr->getInitializer())) {
-                    if (data->isString()) {
-                      annotation += data->getAsString().lower() + " ";
+                              AnnoteStr->getInitializer())) {
+                    if (Data->isString()) {
+                      Annotation += Data->getAsString().lower() + " ";
                     }
                   }
                 }
@@ -55,24 +55,25 @@ std::string llvm::readAnnotate(Function *f) {
       }
     }
   }
-  return (annotation);
+  return (Annotation);
 }
 
-std::string getFunctionAnnotation(Function *F) {
+static std::string getFunctionAnnotation(Function *F) {
   Module *M = F->getParent();
   GlobalVariable *GA = M->getNamedGlobal("llvm.global.annotations");
   if (!GA)
     return "";
 
   if (ConstantArray *CA = dyn_cast<ConstantArray>(GA->getInitializer())) {
-    for (unsigned i = 0; i < CA->getNumOperands(); ++i) {
-      if (ConstantStruct *CS = dyn_cast<ConstantStruct>(CA->getOperand(i))) {
+    for (unsigned I = 0; I < CA->getNumOperands(); ++I) {
+      if (ConstantStruct *CS = dyn_cast<ConstantStruct>(CA->getOperand(I))) {
         if (Function *AnnotatedFunction =
                 dyn_cast<Function>(CS->getOperand(0)->stripPointerCasts())) {
           if (AnnotatedFunction == F) {
-            // The second element is a global variable for the annotation string.
-            // NOTE(Dragoon): Whatever the fuck that may mean. The original
-            // chinese comments are beyond useless. Wondering if this is LLM slop.
+            // The second element is a global variable for the annotation
+            // string. NOTE(Dragoon): Whatever the fuck that may mean. The
+            // original chinese comments are beyond useless. Wondering if this
+            // is LLM slop.
             if (GlobalVariable *GV = dyn_cast<GlobalVariable>(
                     CS->getOperand(1)->stripPointerCasts())) {
               if (ConstantDataArray *Anno =
@@ -89,16 +90,15 @@ std::string getFunctionAnnotation(Function *F) {
   return "";
 }
 
-bool llvm::toObfuscate(bool flag, Function *f,
-                       std::string const &attribute) {
-  std::string attr = attribute;
-  std::string attrNo = "no" + attr;
+bool llvm::toObfuscate(bool Flag, Function *F, std::string const &Attribute) {
+  std::string Attr = Attribute;
+  std::string AttrNo = "no" + Attr;
 
-  if (f->isDeclaration()) {
+  if (F->isDeclaration()) {
     return false;
   }
 
-  if (f->hasAvailableExternallyLinkage() != 0) {
+  if (F->hasAvailableExternallyLinkage() != 0) {
     return false;
   }
 
@@ -108,33 +108,32 @@ bool llvm::toObfuscate(bool flag, Function *f,
   //  We have to check the nofla flag first
   //  Because .find("fla") is true for a string like "fla" or
   //  "nofla"
-  if (getFunctionAnnotation(f).find(attrNo) !=
-      std::string::npos) {
+  if (getFunctionAnnotation(F).find(AttrNo) != std::string::npos) {
     return false;
   }
 
   // If fla annotations
-  if (getFunctionAnnotation(f).find(attr) != std::string::npos) {
+  if (getFunctionAnnotation(F).find(Attr) != std::string::npos) {
     return true;
   }
 
   // TODO(Dragoon): Remove this
   // 由于Visual Studio无法传入annotation,
   // 增加一个使用函数名匹配是否单独开关的功能
-  if (obf_function_name_cmd == true) { // 开启使用函数名匹配混淆功能开关
-    if (f->getName().find("_" + attrNo + "_") != StringRef::npos) {
-      outs() << "[Soule] " << attrNo << ".function: " << f->getName().str()
+  if (ObfFunctionNameCmd == true) { // 开启使用函数名匹配混淆功能开关
+    if (F->getName().find("_" + AttrNo + "_") != StringRef::npos) {
+      outs() << "[Soule] " << AttrNo << ".function: " << F->getName().str()
              << "\n";
       return false;
     }
-    if (f->getName().find("_" + attr + "_") != StringRef::npos) {
-      outs() << "[Soule] " << attr << ".function: " << f->getName().str()
+    if (F->getName().find("_" + Attr + "_") != StringRef::npos) {
+      outs() << "[Soule] " << Attr << ".function: " << F->getName().str()
              << "\n";
       return true;
     }
   }
 
-  return flag;
+  return Flag;
 }
 
 static bool valueEscapes(const Instruction &Inst) {
@@ -195,15 +194,15 @@ void llvm::fixStack(Function &F) {
     DemotePHIToStack(cast<PHINode>(I), AllocaInsertionPoint->getIterator());
 }
 
-void llvm::FixFunctionConstantExpr(Function *Func) {
+void llvm::fixFunctionConstantExpr(Function *Func) {
   // Replace ConstantExpr with equal instructions
   // Otherwise replacing on Constant will crash the compiler
   for (BasicBlock &BB : *Func) {
-    FixBasicBlockConstantExpr(&BB);
+    fixBasicBlockConstantExpr(&BB);
   }
 }
 
-void llvm::FixBasicBlockConstantExpr(BasicBlock *BB) {
+void llvm::fixBasicBlockConstantExpr(BasicBlock *BB) {
   // Replace ConstantExpr with equal instructions
   // Otherwise replacing on Constant will crash the compiler
   // Things to note:
@@ -217,45 +216,45 @@ void llvm::FixBasicBlockConstantExpr(BasicBlock *BB) {
     if (isa<LandingPadInst>(I) || isa<FuncletPadInst>(I)) {
       continue;
     }
-    for (unsigned i = 0; i < I.getNumOperands(); i++) {
-      if (ConstantExpr *C = dyn_cast<ConstantExpr>(I.getOperand(i))) {
+    for (unsigned J = 0; J < I.getNumOperands(); J++) {
+      if (ConstantExpr *C = dyn_cast<ConstantExpr>(I.getOperand(J))) {
         Instruction *InsertPt = &I;
         IRBuilder<NoFolder> IRB(InsertPt);
         if (isa<PHINode>(I)) {
           IRB.SetInsertPoint(FunctionInsertPt);
         }
         Instruction *Inst = IRB.Insert(C->getAsInstruction());
-        I.setOperand(i, Inst);
+        I.setOperand(J, Inst);
       }
     }
   }
 }
 
-std::string llvm::rand_str(int len) {
-  std::string str;
-  char c = 'O';
-  int idx;
-  for (idx = 0; idx < len; idx++) {
+std::string llvm::randStr(int Len) {
+  std::string Str;
+  char C = 'O';
+  int Idx;
+  for (Idx = 0; Idx < Len; Idx++) {
 
     switch ((rand() % 3)) {
     case 1:
-      c = 'O';
+      C = 'O';
       break;
     case 2:
-      c = '0';
+      C = '0';
       break;
     default:
-      c = 'o';
+      C = 'o';
       break;
     }
-    str.push_back(c);
+    Str.push_back(C);
   }
-  return str;
+  return Str;
 }
 
 // LLVM-MSVC has this function, but the official LLVM version does not
 // (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).
-void llvm::LowerConstantExpr(Function &F) {
+void llvm::lowerConstantExpr(Function &F) {
   SmallPtrSet<Instruction *, 8> WorkList;
 
   for (inst_iterator It = inst_begin(F), E = inst_end(F); It != E; ++It) {
@@ -270,34 +269,34 @@ void llvm::LowerConstantExpr(Function &F) {
       }
     }
 
-    for (unsigned int i = 0; i < I->getNumOperands(); ++i) {
-      if (isa<ConstantExpr>(I->getOperand(i)))
+    for (unsigned int J = 0; J < I->getNumOperands(); ++J) {
+      if (isa<ConstantExpr>(I->getOperand(J)))
         WorkList.insert(I);
     }
   }
 
   while (!WorkList.empty()) {
     auto It = WorkList.begin();
-    Instruction *I = *It;
+    Instruction *Instr = *It;
     WorkList.erase(*It);
 
-    if (PHINode *PHI = dyn_cast<PHINode>(I)) {
-      for (unsigned int i = 0; i < PHI->getNumIncomingValues(); ++i) {
-        Instruction *TI = PHI->getIncomingBlock(i)->getTerminator();
+    if (PHINode *PHI = dyn_cast<PHINode>(Instr)) {
+      for (unsigned int I = 0; I < PHI->getNumIncomingValues(); ++I) {
+        Instruction *TI = PHI->getIncomingBlock(I)->getTerminator();
         if (ConstantExpr *CE =
-                dyn_cast<ConstantExpr>(PHI->getIncomingValue(i))) {
+                dyn_cast<ConstantExpr>(PHI->getIncomingValue(I))) {
           Instruction *NewInst = CE->getAsInstruction();
           NewInst->insertBefore(TI);
-          PHI->setIncomingValue(i, NewInst);
+          PHI->setIncomingValue(I, NewInst);
           WorkList.insert(NewInst);
         }
       }
     } else {
-      for (unsigned int i = 0; i < I->getNumOperands(); ++i) {
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(I->getOperand(i))) {
+      for (unsigned int I = 0; I < Instr->getNumOperands(); ++I) {
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Instr->getOperand(I))) {
           Instruction *NewInst = CE->getAsInstruction();
-          NewInst->insertBefore(I);
-          I->replaceUsesOfWith(CE, NewInst);
+          NewInst->insertBefore(Instr);
+          Instr->replaceUsesOfWith(CE, NewInst);
           WorkList.insert(NewInst);
         }
       }

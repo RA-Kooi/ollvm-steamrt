@@ -17,28 +17,30 @@
 namespace llvm {
 class IndirectCallPass : public PassInfoMixin<IndirectCallPass> {
 public:
-  bool flag;
+  explicit IndirectCallPass(bool Enable)
+      : Enabled(Enable), IPO(new IPObfuscationContext()),
+        Options(new ObfuscationOptions()), Callees(), CalleeNumbering(),
+        RandomEngine() {}
+
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  static bool isRequired() { return true; }
+
+private:
+  bool doIndirctCall(Function &F);
+  GlobalVariable *getIndirectCallees(Function &F, ConstantInt *EncKey);
+  void numberCallees(Function &F);
+
+private:
+  bool Enabled;
   std::vector<CallInst *> CallSites;
   IPObfuscationContext *IPO;
   ObfuscationOptions *Options;
   std::vector<Function *> Callees;
   std::map<Function *, unsigned> CalleeNumbering;
   CryptoUtils RandomEngine;
-
-  IndirectCallPass(bool flag) {
-    this->flag = flag;
-    this->IPO = new IPObfuscationContext;
-    this->Options = new ObfuscationOptions;
-  }
-
-  bool doIndirctCall(Function &F);
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
-  GlobalVariable *getIndirectCallees(Function &F, ConstantInt *EncKey);
-  void NumberCallees(Function &F);
-  static bool isRequired() { return true; }
 };
 
-IndirectCallPass *createIndirectCall(bool flag);
+IndirectCallPass *createIndirectCall(bool Enabled);
 } // namespace llvm
 
 #endif // LLVM_INDIRECTCALL_H
