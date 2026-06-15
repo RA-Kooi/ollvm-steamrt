@@ -10,7 +10,6 @@
 using namespace llvm;
 
 LLVMContext *CONTEXT = nullptr;
-bool ObfFunctionNameCmd = false;
 
 std::string llvm::readAnnotate(Function *F) {
   std::string Annotation = "";
@@ -135,22 +134,6 @@ bool llvm::toObfuscate(bool Flag, Function *F, std::string const &Attribute) {
   // If fla annotations
   if (getFunctionAnnotation(F).find(Attr) != std::string::npos) {
     return true;
-  }
-
-  // TODO(Dragoon): Remove this
-  // 由于Visual Studio无法传入annotation,
-  // 增加一个使用函数名匹配是否单独开关的功能
-  if (ObfFunctionNameCmd == true) { // 开启使用函数名匹配混淆功能开关
-    if (F->getName().find("_" + AttrNo + "_") != StringRef::npos) {
-      outs() << "[Soule] " << AttrNo << ".function: " << F->getName().str()
-             << "\n";
-      return false;
-    }
-    if (F->getName().find("_" + Attr + "_") != StringRef::npos) {
-      outs() << "[Soule] " << Attr << ".function: " << F->getName().str()
-             << "\n";
-      return true;
-    }
   }
 
   return Flag;
