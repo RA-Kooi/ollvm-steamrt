@@ -22,5 +22,6 @@ add_llvm_component_library(LLVMObfuscation
   LINK_COMPONENTS
   Analysis
   Core
+  Scalar
   Support
   TransformUtils)

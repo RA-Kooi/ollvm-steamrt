@@ -20,6 +20,7 @@ namespace llvm {
 class RegToMemPass : public PassInfoMixin<RegToMemPass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  static bool runPass(Function &F);
 };
 
 } // end namespace llvm
