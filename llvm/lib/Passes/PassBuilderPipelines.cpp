@@ -85,6 +85,14 @@
 #include "llvm/Transforms/Instrumentation/PGOCtxProfLowering.h"
 #include "llvm/Transforms/Instrumentation/PGOForceFunctionAttrs.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
+#include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
+#include "llvm/Transforms/Obfuscation/Flattening.h"
+#include "llvm/Transforms/Obfuscation/IndirectBranch.h"
+#include "llvm/Transforms/Obfuscation/IndirectCall.h"
+#include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h"
+#include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
+#include "llvm/Transforms/Obfuscation/StringEncryption.h"
+#include "llvm/Transforms/Obfuscation/Substitution.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/AlignmentFromAssumptions.h"
 #include "llvm/Transforms/Scalar/AnnotationRemarks.h"
@@ -2424,6 +2432,19 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
     MPM.addPass(AllocTokenPass());
 
   invokeOptimizerLastEPCallbacks(MPM, Level, Phase);
+
+  MPM.addPass(StringEncryptionPass());
+
+  FunctionPassManager FPM;
+  FPM.addPass(BogusControlFlowPass());
+  FPM.addPass(SplitBasicBlockPass());
+  FPM.addPass(FlatteningPass());
+  FPM.addPass(IndirectCallPass());
+  FPM.addPass(SubstitutionPass());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  MPM.addPass(IndirectBranchPass());
+  MPM.addPass(IndirectGlobalVariablePass());
 
   if (isLTOPreLink(Phase))
     addRequiredLTOPreLinkPasses(MPM);

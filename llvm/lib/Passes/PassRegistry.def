@@ -179,6 +179,9 @@ MODULE_PASS("tysan", TypeSanitizerPass())
 MODULE_PASS("verify", VerifierPass())
 MODULE_PASS("view-callgraph", CallGraphViewerPass())
 MODULE_PASS("wholeprogramdevirt", WholeProgramDevirtPass())
+MODULE_PASS("sobf", StringEncryptionPass())
+MODULE_PASS("ibr", IndirectBranchPass())
+MODULE_PASS("igv", IndirectGlobalVariablePass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -568,6 +571,11 @@ FUNCTION_PASS("view-dom-only", DomOnlyViewer())
 FUNCTION_PASS("view-post-dom", PostDomViewer())
 FUNCTION_PASS("view-post-dom-only", PostDomOnlyViewer())
 FUNCTION_PASS("wasm-eh-prepare", WasmEHPreparePass())
+FUNCTION_PASS("icall", IndirectCallPass())
+FUNCTION_PASS("split", SplitBasicBlockPass())
+FUNCTION_PASS("fla", FlatteningPass())
+FUNCTION_PASS("sub", SubstitutionPass())
+FUNCTION_PASS("bcf", BogusControlFlowPass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS
