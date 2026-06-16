@@ -6,7 +6,6 @@ add_llvm_component_library(LLVMObfuscation
   IndirectCall.cpp
   IndirectGlobalVariable.cpp
   IPObfuscationContext.cpp
-  ObfuscationOptions.cpp
   SplitBasicBlock.cpp
   StringEncryption.cpp
   Substitution.cpp

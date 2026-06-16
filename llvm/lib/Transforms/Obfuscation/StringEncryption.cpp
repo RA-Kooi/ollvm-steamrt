@@ -66,10 +66,8 @@ struct PassState {
   std::map<Function * /*Function*/, GlobalVariable * /*Decryption Status*/>
       Encstatus;
 
-  bool doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled,
-                ObfuscationOptions &Options);
-  bool processConstantStringUse(bool Enabled, Function *F,
-                                ObfuscationOptions &Options);
+  bool doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled);
+  bool processConstantStringUse(bool Enabled, Function *F);
   void deleteUnusedGlobalVariable();
   void getRandomBytes(std::vector<uint8_t> &Bytes, uint32_t MinSize,
                       uint32_t MaxSize);
@@ -92,8 +90,7 @@ static void lowerGlobalConstantStruct(ConstantStruct *CS, IRBuilder<> &IRB,
 static void lowerGlobalConstantArray(ConstantArray *CA, IRBuilder<> &IRB,
                                      Value *Ptr, Type *Ty);
 
-bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled,
-                         ObfuscationOptions &Options) {
+bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled) {
   std::set<GlobalVariable *> ConstantStringUsers;
 
   // collect all c strings
@@ -191,12 +188,12 @@ bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled,
   for (Function &F : M) {
     if (F.isDeclaration())
       continue;
-    Changed |= processConstantStringUse(Enabled, &F, Options);
+    Changed |= processConstantStringUse(Enabled, &F);
   }
 
   for (auto &I : CSUserMap) {
     CSUser *User = I.second;
-    Changed |= processConstantStringUse(Enabled, User->InitFunc, Options);
+    Changed |= processConstantStringUse(Enabled, User->InitFunc);
   }
 
   // delete unused global variables
@@ -213,7 +210,7 @@ PreservedAnalyses StringEncryptionPass::run(Module &M,
                                             ModuleAnalysisManager &AM) {
   if (SobfEnabled) {
     PassState State;
-    if (State.doStrEnc(M, AM, SobfEnabled, *Options))
+    if (State.doStrEnc(M, AM, SobfEnabled))
       return PreservedAnalyses::none();
   }
 
@@ -390,12 +387,8 @@ static void lowerGlobalConstantStruct(ConstantStruct *CS, IRBuilder<> &IRB,
   }
 }
 
-bool PassState::processConstantStringUse(bool Enabled, Function *F,
-                                         ObfuscationOptions &Options) {
+bool PassState::processConstantStringUse(bool Enabled, Function *F) {
   if (!shouldObfuscate(Enabled, F, "cse")) {
-    return false;
-  }
-  if (Options.skipFunction(F->getName())) {
     return false;
   }
   lowerConstantExpr(*F);

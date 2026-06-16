@@ -5,7 +5,6 @@
 
 #include "CryptoUtils.h"
 #include "IPObfuscationContext.h"
-#include "ObfuscationOptions.h"
 
 #include <map>
 #include <vector>
@@ -14,8 +13,8 @@ namespace llvm {
 class IndirectCallPass : public PassInfoMixin<IndirectCallPass> {
 public:
   IndirectCallPass()
-      : IPO(new IPObfuscationContext()), Options(new ObfuscationOptions()),
-        Callees(), CalleeNumbering(), RandomEngine() {}
+      : IPO(new IPObfuscationContext()), Callees(), CalleeNumbering(),
+        RandomEngine() {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
   static bool isRequired() { return true; }
@@ -28,7 +27,6 @@ private:
 private:
   std::vector<CallInst *> CallSites;
   IPObfuscationContext *IPO;
-  ObfuscationOptions *Options;
   std::vector<Function *> Callees;
   std::map<Function *, unsigned> CalleeNumbering;
   CryptoUtils RandomEngine;
