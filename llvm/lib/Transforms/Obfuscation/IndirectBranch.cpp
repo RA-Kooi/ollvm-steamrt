@@ -34,10 +34,6 @@ PreservedAnalyses IndirectBranchPass::run(Module &M,
   for (Function &Fn : M) {
     if (shouldObfuscate(IbrEnabled, &Fn, "ibr")) {
 
-      if (Options && Options->skipFunction(Fn.getName())) {
-        continue;
-      }
-
       if (Fn.empty() || Fn.hasLinkOnceLinkage() ||
           Fn.getSection() == ".text.startup") {
         continue;

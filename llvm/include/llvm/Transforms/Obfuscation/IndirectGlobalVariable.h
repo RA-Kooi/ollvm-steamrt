@@ -5,7 +5,6 @@
 #include "llvm/IR/PassManager.h"
 
 #include "CryptoUtils.h"
-#include "ObfuscationOptions.h"
 
 #include <map>
 #include <vector>
@@ -15,8 +14,7 @@ class IndirectGlobalVariablePass
     : public PassInfoMixin<IndirectGlobalVariablePass> {
 public:
   IndirectGlobalVariablePass()
-      : Options(new ObfuscationOptions()), GVNumbering(), GlobalVariables(),
-        RandomEngine() {}
+      : GVNumbering(), GlobalVariables(), RandomEngine() {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
   static bool isRequired() { return true; }
@@ -26,7 +24,6 @@ private:
   GlobalVariable *getIndirectGlobalVariables(Function &F, ConstantInt *EncKey);
 
 private:
-  ObfuscationOptions *Options;
   std::map<GlobalVariable *, unsigned> GVNumbering;
   std::vector<GlobalVariable *> GlobalVariables;
   CryptoUtils RandomEngine;

@@ -21,10 +21,6 @@ PreservedAnalyses IndirectCallPass::run(Function &F,
 }
 
 bool IndirectCallPass::doIndirctCall(Function &Fn) {
-  if (Options && Options->skipFunction(Fn.getName())) {
-    return false;
-  }
-
   LLVMContext &Ctx = Fn.getContext();
 
   CalleeNumbering.clear();

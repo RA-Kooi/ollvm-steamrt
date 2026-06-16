@@ -36,10 +36,6 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Module &M,
       continue;
     }
 
-    if (Options && Options->skipFunction(Fn.getName())) {
-      continue;
-    }
-
     LLVMContext &Ctx = Fn.getContext();
 
     GVNumbering.clear();
