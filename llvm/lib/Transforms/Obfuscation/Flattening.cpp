@@ -42,7 +42,8 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
   AllocaInst *SwitchVar, *SwitchVarAddr;
   const DataLayout &DL = F->getParent()->getDataLayout();
 
-  std::unordered_map<uint32_t, uint32_t> ScramblingKey;
+  char ScramblingKey[16];
+  Cryptoutils->getBytes(ScramblingKey, 16);
 
   LowerSwitchPass SwitchPass;
   SwitchPass.run(*F, AM);
