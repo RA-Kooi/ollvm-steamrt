@@ -336,6 +336,9 @@ cl::opt<bool> PrintPipelinePasses(
     "print-pipeline-passes",
     cl::desc("Print a '-passes' compatible string describing the pipeline "
              "(best-effort only)."));
+
+static cl::opt<std::string> AesSeed("aesSeed", cl::init(""),
+                                    cl::desc("seed for the AES-CTR PRNG"));
 } // namespace llvm
 
 AnalysisKey NoOpModuleAnalysis::Key;
@@ -476,6 +479,10 @@ PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
 #include "llvm/Passes/MachinePassRegistry.def"
     });
   }
+
+  if (!AesSeed.empty())
+    if (!Cryptoutils->prngSeed(AesSeed))
+        exit(1);
 }
 
 void PassBuilder::registerModuleAnalyses(ModuleAnalysisManager &MAM) {
