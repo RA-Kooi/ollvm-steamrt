@@ -17,14 +17,14 @@ STATISTIC(Flattened, "Functions flattened");
 
 static cl::opt<bool> FlaEnabled("fla", cl::init(false), cl::desc("Flattening"));
 
-static bool flatten(Function *F);
+static bool flatten(Function *F, FunctionAnalysisManager &AM);
 
 PreservedAnalyses FlatteningPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
   if (shouldObfuscate(FlaEnabled, &F, "fla")) {
     INIT_CONTEXT(F);
 
-    if (flatten(&F)) {
+    if (flatten(&F, AM)) {
       ++Flattened;
     }
 
@@ -34,7 +34,7 @@ PreservedAnalyses FlatteningPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-static bool flatten(Function *F) {
+static bool flatten(Function *F, FunctionAnalysisManager &AM) {
   SmallVector<BasicBlock *, 8> OrigBb;
   BasicBlock *LoopEntry, *LoopEnd;
   LoadInst *Load;
@@ -44,9 +44,8 @@ static bool flatten(Function *F) {
 
   std::unordered_map<uint32_t, uint32_t> ScramblingKey;
 
-  FunctionAnalysisManager FAM;
   LowerSwitchPass SwitchPass;
-  SwitchPass.run(*F, FAM);
+  SwitchPass.run(*F, AM);
 
   for (BasicBlock &BB : *F) {
     if (BB.isEHPad() || BB.isLandingPad()) {
