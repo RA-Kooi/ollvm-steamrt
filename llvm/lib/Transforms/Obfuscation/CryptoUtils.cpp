@@ -654,17 +654,6 @@ unsigned CryptoUtils::scramble32(const unsigned In, const char Key[16]) {
   return TmpA ^ TmpB;
 }
 
-uint32_t CryptoUtils::scramble32(
-    uint32_t In, std::unordered_map<uint32_t /*IDX*/, uint32_t /*VAL*/> &VMap) {
-  if (VMap.find(In) == VMap.end()) {
-    uint32_t V = getUint32T();
-    VMap[In] = V;
-    return V;
-  }
-
-  return VMap[In];
-}
-
 bool CryptoUtils::prngSeed(std::string const &InitSeed) {
   unsigned char SeedBuf[16];
   unsigned int I = 0;
