@@ -29,7 +29,6 @@ void fixStack(Function &F);
 
 void fixBasicBlockConstantExpr(BasicBlock *BB);
 void fixFunctionConstantExpr(Function *Func);
-std::string randStr(int Len);
 
 // LLVM-MSVC has this function, but the official LLVM version does not
 // (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).

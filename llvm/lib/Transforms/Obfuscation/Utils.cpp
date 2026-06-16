@@ -176,28 +176,6 @@ void llvm::fixBasicBlockConstantExpr(BasicBlock *BB) {
   }
 }
 
-std::string llvm::randStr(int Len) {
-  std::string Str;
-  char C = 'O';
-  int Idx;
-  for (Idx = 0; Idx < Len; Idx++) {
-
-    switch ((rand() % 3)) {
-    case 1:
-      C = 'O';
-      break;
-    case 2:
-      C = '0';
-      break;
-    default:
-      C = 'o';
-      break;
-    }
-    Str.push_back(C);
-  }
-  return Str;
-}
-
 // LLVM-MSVC has this function, but the official LLVM version does not
 // (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).
 void llvm::lowerConstantExpr(Function &F) {
