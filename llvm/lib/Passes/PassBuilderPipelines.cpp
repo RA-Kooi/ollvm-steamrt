@@ -79,10 +79,10 @@
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/Transforms/Obfuscation/Flattening.h"
+#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
 #include "llvm/Transforms/Obfuscation/IndirectCall.h"
 #include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h"
-#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
 #include "llvm/Transforms/Obfuscation/StringEncryption.h"
 #include "llvm/Transforms/Obfuscation/Substitution.h"
@@ -1586,14 +1586,6 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
 
-  MPM.addPass(StringEncryptionPass());
-
-  FunctionPassManager FPM;
-  FPM.addPass(BogusControlFlowPass());
-  FPM.addPass(SplitBasicBlockPass());
-  FPM.addPass(FlatteningPass());
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-
   if (PGOOpt && PGOOpt->DebugInfoForProfiling)
     MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
 
@@ -1619,6 +1611,13 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   if (LTOPreLink)
     addRequiredLTOPreLinkPasses(MPM);
 
+  FunctionPassManager FPM;
+  FPM.addPass(BogusControlFlowPass());
+  FPM.addPass(SplitBasicBlockPass());
+  FPM.addPass(FlatteningPass());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  MPM.addPass(StringEncryptionPass());
   MPM.addPass(IPObfuscationContextPass());
 
   FPM = FunctionPassManager();
@@ -1627,7 +1626,6 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-
 
   return MPM;
 }
