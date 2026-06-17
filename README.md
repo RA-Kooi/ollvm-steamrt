@@ -1,44 +1,49 @@
-# The LLVM Compiler Infrastructure
+# Overview
 
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/llvm/llvm-project/badge)](https://securityscorecards.dev/viewer/?uri=github.com/llvm/llvm-project)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8273/badge)](https://www.bestpractices.dev/projects/8273)
-[![libc++](https://github.com/llvm/llvm-project/actions/workflows/libcxx-build-and-test.yaml/badge.svg?branch=main&event=schedule)](https://github.com/llvm/llvm-project/actions/workflows/libcxx-build-and-test.yaml?query=event%3Aschedule)
+This is a port of various LLVM obfuscators to a somewhat recent version of LLVM.  
+The targeted version of LLVM is the same as the one in the current latest Steam runtime (version 4).  
+The Steam runtime is not needed in any way whatsoever, I just decided that's the version I am targeting.
 
-Welcome to the LLVM project!
+# Features
 
-This repository contains the source code for LLVM, a toolkit for the
-construction of highly optimized compilers, optimizers, and run-time
-environments.
+You can annotate functions to obfuscate specific functions instead of a whole translation unit,  
+or to selectively disable obfuscations:
+```cpp
+void __attribute__((annotate("fla nobcf"))) Test()
+{
+    puts("Test");
+}
+```
+The annotations match the flags passed to llvm driver.  
+Prefixing the annotation with `no` disables that specific pass for that function.
 
-The LLVM project has multiple components. The core of the project is
-itself called "LLVM". This contains all of the tools, libraries, and header
-files needed to process intermediate representations and convert them into
-object files. Tools include an assembler, disassembler, bitcode analyzer, and
-bitcode optimizer.
+## Original obfuscator-llvm features
+- Bogus control flow `-mllvm -bcf`
+  - `-mllvm bcf_prob=70` controls the probability of each basic block being processed by the pass.
+  - `-mllvm bcf_loop=2` controls the amount of times the pass loops on a function.
+- Basic block splitting `-mllvm -split`
+  - `-mllvm -split_num=3` controls the amount of times each block is split.
+- Instruction substitution `-mllvm -sub`
+- Seeding of the PRNG `-mllvm aesSeed=3ec1795344a7f787454c09c755e215001`  
+  The seed must be a 32 character long string of hexadecimal digits (leading 0x accepted).
 
-C-like languages use the [Clang](https://clang.llvm.org/) frontend. This
-component compiles C, C++, Objective-C, and Objective-C++ code into LLVM bitcode
--- and from there into object files, using LLVM.
+## Hikari features
+- Control flow flattening `-mllvm -fla`
 
-Other components include:
-the [libc++ C++ standard library](https://libcxx.llvm.org),
-the [LLD linker](https://lld.llvm.org), and more.
+## Goron features
+- Indirect branching `-mllvm -ibr`
+- Indirect function calls `-mllvm -icall`
+- String obfuscation `-mllvm -sobf`
+- Indirect global variables `-mllvm -igv`  
+  Puts global variables in a table adding a layer of indirection.
 
-## Getting the Source Code and Building LLVM
+# Credits
+[Obfuscator](https://github.com/obfuscator-llvm/obfuscator) By the original obfuscator-llvm team  
+[Hikari](https://github.com/HikariObfuscator/Core) By [Naville](https://github.com/Naville)  
+[goron](https://github.com/amimo/goron) by amimo  
 
-Consult the
-[Getting Started with LLVM](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm)
-page for information on building and running LLVM.
+# Disclaimer
 
-For information on how to contribute to the LLVM project, please take a look at
-the [Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide.
-
-## Getting in touch
-
-Join the [LLVM Discourse forums](https://discourse.llvm.org/), [Discord
-chat](https://discord.gg/xS7Z362),
-[LLVM Office Hours](https://llvm.org/docs/GettingInvolved.html#office-hours) or
-[Regular sync-ups](https://llvm.org/docs/GettingInvolved.html#online-sync-ups).
-
-The LLVM project has adopted a [code of conduct](https://llvm.org/docs/CodeOfConduct.html) for
-participants to all modes of communication within the project.
+I claim no responsibility for any shortcomings, miscompilations, and bugs in this port.  
+I futhermore am not responsible for any type of deployment of this port. Any and all  
+responsibilty of (ab)use falls on the user of this software and not on me the porter.
