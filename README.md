@@ -37,6 +37,12 @@ Prefixing the annotation with `no` disables that specific pass for that function
 - Indirect global variables `-mllvm -igv`  
   Puts global variables in a table adding a layer of indirection.
 
+# A note on performance
+
+All passes are ran after most optimization passes, since the optimizer would  
+(partially) undo some of the obfuscations. Make sure that you measure the performance
+overhead carefully before shipping.
+
 # Credits
 [Obfuscator](https://github.com/obfuscator-llvm/obfuscator) By the original obfuscator-llvm team  
 [Hikari](https://github.com/HikariObfuscator/Core) By [Naville](https://github.com/Naville)  
