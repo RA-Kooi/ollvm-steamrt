@@ -3,34 +3,17 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
+#include "llvm/IR/PassManager.h"
 
 #include <map>
+#include <memory>
+#include <mutex>
 #include <set>
 #include <vector>
 
 // Namespace
 namespace llvm {
-class ModulePass;
-class FunctionPass;
-class PassRegistry;
-
-struct IPObfuscationContext : public ModulePass {
-  static char ID;
-
-  IPObfuscationContext()
-      : ModulePass(ID), Enabled(false), LocalFunctions(), IPOInfoList(),
-        IPOInfoMap(), DeadSlots() {}
-
-  explicit IPObfuscationContext(bool Enable)
-      : ModulePass(ID), Enabled(Enable), LocalFunctions(), IPOInfoList(),
-        IPOInfoMap(), DeadSlots() {}
-
-  bool runOnModule(Module &M) override;
-  bool doFinalization(Module &) override;
-
-private:
+struct IPObfuscationContext {
   /* Inter-procedural obfuscation secret info of a function */
   struct IPOInfo {
     IPOInfo(AllocaInst *CallerAI, AllocaInst *CalleeAI, LoadInst *LI,
@@ -48,24 +31,28 @@ private:
     ConstantInt *SecretCI;
   };
 
-private:
+  const IPOInfo *getIPOInfo(Function *F);
+
   void surveyFunction(Function &F);
   Function *insertSecretArgument(Function *F);
   void computeCallSiteSecretArgument(Function *F);
-  IPOInfo *allocaSecretSlot(Function &F);
-  const IPOInfo *getIPOInfo(Function *F);
+  std::unique_ptr<IPOInfo> allocaSecretSlot(Function &F);
 
-private:
-  bool Enabled;
+  std::mutex Lock;
 
   std::set<Function *> LocalFunctions;
-  SmallVector<IPOInfo *, 16> IPOInfoList;
+  SmallVector<std::unique_ptr<IPOInfo>, 16> IPOInfoList;
   std::map<Function *, IPOInfo *> IPOInfoMap;
   std::vector<AllocaInst *> DeadSlots;
 };
 
-IPObfuscationContext *createIPObfuscationContextPass(bool Enabled);
-void initializeIPObfuscationContextPass(PassRegistry &Registry);
+static IPObfuscationContext IPO;
+
+struct IPObfuscationContextPass
+    : public PassInfoMixin<IPObfuscationContextPass> {
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  static bool isRequired() { return true; }
+};
 } // namespace llvm
 
 #endif
