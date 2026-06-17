@@ -33,22 +33,21 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
 
   numberCallees(Fn);
 
-  if (Callees.empty()) {
+  if (Callees.empty())
     return false;
-  }
 
   uint64_t V = RandomEngine.getUint64T();
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
-  unsigned PointerSize =
-      Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
-          PointerType::getUnqual(Fn.getContext()));
-  if (PointerSize == 8) {
+  unsigned PointerSize = Fn.getParent()->getDataLayout().getPointerSize();
+
+  if (PointerSize == 8)
     IntType = Type::getInt64Ty(Ctx);
-  }
+
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
   const IPObfuscationContext::IPOInfo *SecretInfo = IPO.getIPOInfo(&Fn);
+
   Value *MySecret = nullptr;
   if (SecretInfo)
     MySecret = SecretInfo->SecretLI;
@@ -71,10 +70,11 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
     Args.clear();
     ArgAttrVec.clear();
 
-    Value *Idx =
-        ConstantInt::get(IntType, CalleeNumbering[CB->getCalledFunction()]);
+    // clang-format off
+    Value *Idx = ConstantInt::get(IntType, CalleeNumbering[CB->getCalledFunction()]);
     Value *GEP = IRB.CreateGEP(Targets->getValueType(), Targets, {Zero, Idx});
     LoadInst *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, CI->getName());
+    // clang-format on
 
     Constant *X;
     if (SecretInfo)
@@ -97,13 +97,20 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
       ArgAttrVec.push_back(CallPAL.getParamAttrs(I1));
     }
 
-    AttributeList NewCallPAL =
-        AttributeList::get(IRB.getContext(), CallPAL.getFnAttrs(),
-                           CallPAL.getRetAttrs(), ArgAttrVec);
+    // clang-format off
+    AttributeList NewCallPAL = AttributeList::get(
+        IRB.getContext(),
+        CallPAL.getFnAttrs(),
+        CallPAL.getRetAttrs(),
+        ArgAttrVec);
 
     Value *Secret = IRB.CreateSub(X, MySecret);
-    Value *DestAddr =
-        IRB.CreateGEP(PointerType::getUnqual(Ctx), EncDestAddr, Secret);
+
+    Value *DestAddr = IRB.CreateGEP(
+        PointerType::getUnqual(Ctx),
+        EncDestAddr,
+        Secret);
+    // clang-format on
 
     Value *FnPtr = IRB.CreateBitCast(DestAddr, FTy->getPointerTo());
     FnPtr->setName("Call_" + Callee->getName());
@@ -120,46 +127,66 @@ GlobalVariable *IndirectCallPass::getIndirectCallees(Function &F,
                                                      ConstantInt *EncKey) {
   std::string GVName(F.getName().str() + "_IndirectCallees");
   GlobalVariable *GV = F.getParent()->getNamedGlobal(GVName);
-  if (GV) {
+  if (GV)
     return GV;
-  }
+
   // callee's address
+  // clang-format off
   std::vector<Constant *> Elements;
   for (Function *Callee : Callees) {
     Constant *CE = ConstantExpr::getBitCast(
-        Callee, llvm::PointerType::get(Type::getInt64Ty(F.getContext()), 0));
-    CE = ConstantExpr::getGetElementPtr(Type::getInt64Ty(F.getContext()), CE,
-                                        EncKey);
+        Callee,
+        PointerType::getUnqual(F.getContext()));
+
+    CE = ConstantExpr::getGetElementPtr(
+        Type::getInt64Ty(F.getContext()),
+        CE,
+        EncKey);
+
     Elements.push_back(CE);
   }
-  ArrayType *ATy =
-      ArrayType::get(PointerType::getUnqual(F.getContext()), Elements.size());
+
+  ArrayType *ATy = ArrayType::get(
+      PointerType::getUnqual(F.getContext()),
+      Elements.size());
+
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
-  GV =
-      new GlobalVariable(*F.getParent(), ATy, false,
-                         GlobalValue::LinkageTypes::PrivateLinkage, CA, GVName);
+
+  GV = new GlobalVariable(
+      *F.getParent(),
+      ATy,
+      false,
+      GlobalValue::LinkageTypes::PrivateLinkage,
+      CA,
+      GVName);
+  // clang-format on
+
   appendToCompilerUsed(*F.getParent(), {GV});
+
   return GV;
 }
 
 void IndirectCallPass::numberCallees(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      if (isa<CallInst>(&I)) {
-        CallSite CS(&I);
-        Function *Callee = CS.getCalledFunction();
-        if (Callee == nullptr) {
-          continue;
-        }
-        if (Callee->isIntrinsic()) {
-          continue;
-        }
-        CallSites.push_back((CallInst *)&I);
-        if (CalleeNumbering.count(Callee) == 0) {
-          CalleeNumbering[Callee] = Callees.size();
-          Callees.push_back(Callee);
-        }
-      }
+      if (!isa<CallInst>(&I))
+        continue;
+
+      CallSite CS(&I);
+      Function *Callee = CS.getCalledFunction();
+      if (Callee == nullptr)
+        continue;
+
+      if (Callee->isIntrinsic())
+        continue;
+
+      CallSites.push_back((CallInst *)&I);
+
+      if (CalleeNumbering.count(Callee) > 0)
+        continue;
+
+      CalleeNumbering[Callee] = Callees.size();
+      Callees.push_back(Callee);
     }
   }
 }
