@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -29,103 +30,122 @@ using namespace llvm;
 static cl::opt<bool> IbrEnabled("ibr", cl::init(false),
                                 cl::desc("Indirect Branch"));
 
-PreservedAnalyses IndirectBranchPass::run(Module &M,
-                                          ModuleAnalysisManager &AM) {
-  for (Function &Fn : M) {
-    if (shouldObfuscate(IbrEnabled, &Fn, "ibr")) {
-
-      if (Fn.empty() || Fn.hasLinkOnceLinkage() ||
-          Fn.getSection() == ".text.startup") {
-        continue;
-      }
-
-      LLVMContext &Ctx = Fn.getContext();
-
-      // Init member fields
-      BBNumbering.clear();
-      BBTargets.clear();
-
-      // llvm cannot split critical edge from IndirectBrInst
-      SplitAllCriticalEdges(Fn, CriticalEdgeSplittingOptions(nullptr, nullptr));
-      numberBasicBlock(Fn);
-
-      if (BBNumbering.empty()) {
-        continue;
-      }
-
-      uint64_t V = RandomEngine.getUint64T();
-      IntegerType *IntType = Type::getInt32Ty(Ctx);
-      unsigned PointerSize =
-          Fn.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
-              PointerType::getUnqual(Fn.getContext())); // Soule
-      if (PointerSize == 8) {
-        IntType = Type::getInt64Ty(Ctx);
-      }
-      ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
-      ConstantInt *EncKey1 = ConstantInt::get(IntType, -V, false);
-
-      Value *MySecret = ConstantInt::get(IntType, 0, true);
-
-      ConstantInt *Zero = ConstantInt::get(IntType, 0);
-      GlobalVariable *DestBBs = getIndirectTargets(Fn, EncKey1);
-
-      for (auto &BB : Fn) {
-        auto *BI = dyn_cast<BranchInst>(BB.getTerminator());
-        if (BI && BI->isConditional()) {
-          IRBuilder<> IRB(BI);
-
-          Value *Cond = BI->getCondition();
-          Value *Idx;
-          Value *TIdx, *FIdx;
-
-          TIdx = ConstantInt::get(IntType, BBNumbering[BI->getSuccessor(0)]);
-          FIdx = ConstantInt::get(IntType, BBNumbering[BI->getSuccessor(1)]);
-          Idx = IRB.CreateSelect(Cond, TIdx, FIdx);
-
-          Value *GEP =
-              IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, Idx});
-          Value *EncDestAddr =
-              IRB.CreateLoad(GEP->getType(), GEP, "EncDestAddr");
-          // -EncKey = X - FuncSecret
-          Value *DecKey = IRB.CreateAdd(EncKey, MySecret);
-          Value *DestAddr =
-              IRB.CreateGEP(Type::getInt8Ty(Ctx), EncDestAddr, DecKey);
-
-          IndirectBrInst *IBI = IndirectBrInst::Create(DestAddr, 2);
-          IBI->addDestination(BI->getSuccessor(0));
-          IBI->addDestination(BI->getSuccessor(1));
-          ReplaceInstWithInst(BI, IBI);
-        }
-      }
-    }
+PreservedAnalyses IndirectBranchPass::run(Function &F,
+                                          FunctionAnalysisManager &AM) {
+  if (!shouldObfuscate(IbrEnabled, &F, "ibr")) {
+    return PreservedAnalyses::all();
   }
+
+  if (F.empty() || F.hasLinkOnceLinkage() ||
+      F.getSection() == ".text.startup") {
+    return PreservedAnalyses::all();
+  }
+
+  LLVMContext &Ctx = F.getContext();
+
+  // Init member fields
+  BBNumbering.clear();
+  BBTargets.clear();
+
+  // llvm cannot split critical edge from IndirectBrInst
+  SplitAllCriticalEdges(F, CriticalEdgeSplittingOptions(nullptr, nullptr));
+  numberBasicBlock(F);
+
+  if (BBNumbering.empty()) {
+    return PreservedAnalyses::all();
+  }
+
+  uint64_t V = RandomEngine.getUint64T();
+  IntegerType *IntType = Type::getInt32Ty(Ctx);
+
+  unsigned PointerSize =
+      F.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
+          PointerType::getUnqual(F.getContext()));
+
+  if (PointerSize == 8)
+    IntType = Type::getInt64Ty(Ctx);
+
+  ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
+
+  const IPObfuscationContext::IPOInfo *SecretInfo = IPO.getIPOInfo(&F);
+
+  Value *MySecret = nullptr;
+  if (SecretInfo)
+    MySecret = SecretInfo->SecretLI;
+  else
+    MySecret = ConstantInt::get(IntType, 0, true);
+
+  ConstantInt *Zero = ConstantInt::get(IntType, 0);
+  GlobalVariable *DestBBs = getIndirectTargets(F, EncKey);
+
+  for (BasicBlock &BB : F) {
+    auto *BI = dyn_cast<BranchInst>(BB.getTerminator());
+    if (!(BI && BI->isConditional()))
+      continue;
+
+    IRBuilder<> IRB(BI);
+
+    Value *Cond = BI->getCondition();
+    Value *Idx;
+    Value *TIdx, *FIdx;
+
+    TIdx = ConstantInt::get(IntType, BBNumbering[BI->getSuccessor(0)]);
+    FIdx = ConstantInt::get(IntType, BBNumbering[BI->getSuccessor(1)]);
+    Idx = IRB.CreateSelect(Cond, TIdx, FIdx);
+
+    Value *GEP = IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, Idx});
+    Value *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, "EncDestAddr");
+
+    // Use IPO context to compute the encryption key
+    // X = FuncSecret - EncKey
+    Constant *X;
+    if (SecretInfo)
+      X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
+    else
+      X = ConstantExpr::getSub(Zero, EncKey);
+
+    // -EncKey = X - FuncSecret
+    Value *DecKey = IRB.CreateAdd(X, MySecret);
+    Value *DestAddr =
+        IRB.CreateGEP(PointerType::getUnqual(Ctx), EncDestAddr, DecKey);
+
+    IndirectBrInst *IBI = IndirectBrInst::Create(DestAddr, 2);
+    IBI->addDestination(BI->getSuccessor(0));
+    IBI->addDestination(BI->getSuccessor(1));
+    ReplaceInstWithInst(BI, IBI);
+  }
+
   return PreservedAnalyses::none();
 }
 
 void IndirectBranchPass::numberBasicBlock(Function &F) {
-  for (auto &BB : F) {
-    if (auto *BI = dyn_cast<BranchInst>(BB.getTerminator())) {
-      if (BI->isConditional()) {
-        unsigned N = BI->getNumSuccessors();
-        for (unsigned I = 0; I < N; I++) {
-          BasicBlock *Succ = BI->getSuccessor(I);
-          if (BBNumbering.count(Succ) == 0) {
-            BBTargets.push_back(Succ);
-            BBNumbering[Succ] = 0;
-          }
-        }
-      }
+  for (BasicBlock &BB : F) {
+    auto *BI = dyn_cast<BranchInst>(BB.getTerminator());
+    if (!BI)
+      continue;
+
+    if (!BI->isConditional())
+      continue;
+
+    unsigned N = BI->getNumSuccessors();
+    for (unsigned I = 0; I < N; I++) {
+      BasicBlock *Succ = BI->getSuccessor(I);
+      if (BBNumbering.count(Succ) != 0)
+        continue;
+
+      BBTargets.push_back(Succ);
+      BBNumbering[Succ] = 0;
     }
   }
 
+  // CHECK(Rafaël): Does this break reproducibility?
   long Seed = RandomEngine.getUint32T();
   std::default_random_engine E(Seed);
   std::shuffle(BBTargets.begin(), BBTargets.end(), E);
 
   unsigned N = 0;
-  for (auto *BB : BBTargets) {
+  for (auto *BB : BBTargets)
     BBNumbering[BB] = N++;
-  }
 }
 
 GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
@@ -140,19 +160,20 @@ GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
   for (auto *const BB : BBTargets) {
     Constant *CE = ConstantExpr::getBitCast(
         BlockAddress::get(BB),
-        llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
-    CE = ConstantExpr::getGetElementPtr(Type::getInt8Ty(F.getContext()), CE,
+        PointerType::get(Type::getInt64Ty(F.getContext()), 0));
+    CE = ConstantExpr::getGetElementPtr(Type::getInt64Ty(F.getContext()), CE,
                                         EncKey);
     Elements.push_back(CE);
   }
 
   ArrayType *ATy =
-      ArrayType::get(llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0),
-                     Elements.size());
+      ArrayType::get(PointerType::getUnqual(F.getContext()), Elements.size());
+
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
   GV =
       new GlobalVariable(*F.getParent(), ATy, false,
                          GlobalValue::LinkageTypes::PrivateLinkage, CA, GVName);
   appendToCompilerUsed(*F.getParent(), {GV});
+
   return GV;
 }

@@ -75,6 +75,7 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
         ConstantInt::get(IntType, CalleeNumbering[CB->getCalledFunction()]);
     Value *GEP = IRB.CreateGEP(Targets->getValueType(), Targets, {Zero, Idx});
     LoadInst *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, CI->getName());
+
     Constant *X;
     if (SecretInfo)
       X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
