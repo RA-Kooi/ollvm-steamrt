@@ -32,9 +32,8 @@ static cl::opt<bool> IbrEnabled("ibr", cl::init(false),
 
 PreservedAnalyses IndirectBranchPass::run(Function &F,
                                           FunctionAnalysisManager &AM) {
-  if (!shouldObfuscate(IbrEnabled, &F, "ibr")) {
+  if (!shouldObfuscate(IbrEnabled, &F, "ibr"))
     return PreservedAnalyses::all();
-  }
 
   if (F.empty() || F.hasLinkOnceLinkage() ||
       F.getSection() == ".text.startup") {
@@ -51,16 +50,13 @@ PreservedAnalyses IndirectBranchPass::run(Function &F,
   SplitAllCriticalEdges(F, CriticalEdgeSplittingOptions(nullptr, nullptr));
   numberBasicBlock(F);
 
-  if (BBNumbering.empty()) {
+  if (BBNumbering.empty())
     return PreservedAnalyses::all();
-  }
 
   uint64_t V = RandomEngine.getUint64T();
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
-  unsigned PointerSize =
-      F.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
-          PointerType::getUnqual(F.getContext()));
+  unsigned PointerSize = F.getParent()->getDataLayout().getPointerSize();
 
   if (PointerSize == 8)
     IntType = Type::getInt64Ty(Ctx);
@@ -156,23 +152,36 @@ GlobalVariable *IndirectBranchPass::getIndirectTargets(Function &F,
     return GV;
 
   // encrypt branch targets
+  // clang-format off
   std::vector<Constant *> Elements;
   for (auto *const BB : BBTargets) {
     Constant *CE = ConstantExpr::getBitCast(
         BlockAddress::get(BB),
-        PointerType::get(Type::getInt64Ty(F.getContext()), 0));
-    CE = ConstantExpr::getGetElementPtr(Type::getInt64Ty(F.getContext()), CE,
-                                        EncKey);
+        PointerType::getUnqual(F.getContext()));
+
+    CE = ConstantExpr::getGetElementPtr(
+        Type::getInt64Ty(F.getContext()),
+        CE,
+        EncKey);
+
     Elements.push_back(CE);
   }
 
-  ArrayType *ATy =
-      ArrayType::get(PointerType::getUnqual(F.getContext()), Elements.size());
+  ArrayType *ATy = ArrayType::get(
+      PointerType::getUnqual(F.getContext()),
+      Elements.size());
 
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
-  GV =
-      new GlobalVariable(*F.getParent(), ATy, false,
-                         GlobalValue::LinkageTypes::PrivateLinkage, CA, GVName);
+
+  GV = new GlobalVariable(
+      *F.getParent(),
+      ATy,
+      false,
+      GlobalValue::LinkageTypes::PrivateLinkage,
+      CA,
+      GVName);
+  // clang-format on
+
   appendToCompilerUsed(*F.getParent(), {GV});
 
   return GV;
