@@ -12,8 +12,7 @@
 namespace llvm {
 class IndirectBranchPass : public PassInfoMixin<IndirectBranchPass> {
 public:
-  IndirectBranchPass()
-      : BBNumbering(), BBTargets(), RandomEngine() {}
+  IndirectBranchPass() : BBNumbering(), BBTargets(), RandomEngine() {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
   static bool isRequired() { return true; }
