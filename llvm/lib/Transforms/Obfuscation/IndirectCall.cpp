@@ -2,9 +2,11 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Obfuscation/compat/CallSite.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
+#include <mutex>
 
 using namespace llvm;
 
@@ -14,6 +16,8 @@ static cl::opt<bool> IcallEnabled("icall", cl::init(false),
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
   if (shouldObfuscate(IcallEnabled, &F, "icall")) {
+    std::lock_guard<std::mutex> Guard(IPO.Lock);
+
     runOnFunction(F);
     return PreservedAnalyses::none();
   }
@@ -44,7 +48,12 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
   }
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
-  Value *MySecret = ConstantInt::get(IntType, 0, true);
+  const IPObfuscationContext::IPOInfo *SecretInfo = IPO.getIPOInfo(&Fn);
+  Value *MySecret = nullptr;
+  if (SecretInfo)
+    MySecret = SecretInfo->SecretLI;
+  else
+    MySecret = ConstantInt::get(IntType, 0, true);
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
   GlobalVariable *Targets = getIndirectCallees(Fn, EncKey);
@@ -66,6 +75,11 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
         ConstantInt::get(IntType, CalleeNumbering[CB->getCalledFunction()]);
     Value *GEP = IRB.CreateGEP(Targets->getValueType(), Targets, {Zero, Idx});
     LoadInst *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, CI->getName());
+    Constant *X;
+    if (SecretInfo)
+      X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
+    else
+      X = ConstantExpr::getSub(Zero, EncKey);
 
     const AttributeList &CallPAL = CB->getAttributes();
     auto *I = CB->arg_begin();
@@ -86,7 +100,7 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
         AttributeList::get(IRB.getContext(), CallPAL.getFnAttrs(),
                            CallPAL.getRetAttrs(), ArgAttrVec);
 
-    Value *Secret = IRB.CreateSub(EncKey, MySecret);
+    Value *Secret = IRB.CreateSub(X, MySecret);
     Value *DestAddr =
         IRB.CreateGEP(PointerType::getUnqual(Ctx), EncDestAddr, Secret);
 
