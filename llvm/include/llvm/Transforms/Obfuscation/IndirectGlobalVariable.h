@@ -16,7 +16,7 @@ public:
   IndirectGlobalVariablePass()
       : GVNumbering(), GlobalVariables(), RandomEngine() {}
 
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
   static bool isRequired() { return true; }
 
 private:

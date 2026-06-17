@@ -181,7 +181,6 @@ MODULE_PASS("view-callgraph", CallGraphViewerPass())
 MODULE_PASS("wholeprogramdevirt", WholeProgramDevirtPass())
 MODULE_PASS("sobf", StringEncryptionPass())
 MODULE_PASS("ibr", IndirectBranchPass())
-MODULE_PASS("igv", IndirectGlobalVariablePass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -576,6 +575,7 @@ FUNCTION_PASS("split", SplitBasicBlockPass())
 FUNCTION_PASS("fla", FlatteningPass())
 FUNCTION_PASS("sub", SubstitutionPass())
 FUNCTION_PASS("bcf", BogusControlFlowPass())
+FUNCTION_PASS("igv", IndirectGlobalVariablePass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS
