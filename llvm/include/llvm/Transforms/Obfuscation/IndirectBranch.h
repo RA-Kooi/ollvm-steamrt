@@ -14,7 +14,7 @@ class IndirectBranchPass : public PassInfoMixin<IndirectBranchPass> {
 public:
   IndirectBranchPass() : BBNumbering(), BBTargets(), RandomEngine() {}
 
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
   static bool isRequired() { return true; }
 
 private:
