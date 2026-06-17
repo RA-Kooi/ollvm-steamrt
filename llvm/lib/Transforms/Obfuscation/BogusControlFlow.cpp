@@ -208,6 +208,9 @@ PreservedAnalyses BogusControlFlowPass::run(Function &F,
 static void bogus(Function &F) {
   // For statistics and debug
   ++NumFunction;
+#ifndef NDEBUG
+  int NumBasicBlocks = 0;
+#endif
   bool FirstTime = true; // First time we do the loop in this function
   bool HasBeenModified = false;
   DEBUG_WITH_TYPE("opt",
@@ -217,14 +220,14 @@ static void bogus(Function &F) {
   if (ObfProbRate < 0 || ObfProbRate > 100) {
     DEBUG_WITH_TYPE("opt", errs() << "bcf: Incorrect value,"
                                   << " probability rate set to default value: "
-                                  << defaultObfRate << " \n");
+                                  << DefaultObfRate << " \n");
     ObfProbRate = DefaultObfRate;
   }
   DEBUG_WITH_TYPE("opt", errs() << "bcf: How many times: " << ObfTimes << "\n");
   if (ObfTimes <= 0) {
     DEBUG_WITH_TYPE("opt", errs() << "bcf: Incorrect value,"
                                   << " must be greater than 1. Set to default: "
-                                  << defaultObfTime << " \n");
+                                  << DefaultObfTime << " \n");
     ObfTimes = DefaultObfTime;
   }
   NumTimesOnFunctions = ObfTimes;
@@ -245,6 +248,9 @@ static void bogus(Function &F) {
         "gen", errs() << "bcf: Iterating on the Function's Basic Blocks\n");
 
     while (!BasicBlocks.empty()) {
+#ifndef NDEBUG
+      NumBasicBlocks++;
+#endif
       // Basic Blocks' selection
       if ((int)llvm::Cryptoutils->getRange(100) <= ObfProbRate) {
         DEBUG_WITH_TYPE("opt", errs() << "bcf: Block " << NumBasicBlocks
@@ -691,14 +697,14 @@ static bool doF(Module &M, Function &F) {
                        ((BranchInst *)*I)->getSuccessor(1), (Value *)Op1,
                        ((BranchInst *)*I)->getParent());
     DEBUG_WITH_TYPE("gen", errs() << "bcf: Erase branch instruction:"
-                                  << *((BranchInst *)*i) << "\n");
+                                  << *((BranchInst *)*I) << "\n");
     (*I)->eraseFromParent(); // erase the branch
   }
   // Erase all the associated conditions we found
   for (std::vector<Instruction *>::iterator I = ToDelete.begin();
        I != ToDelete.end(); ++I) {
     DEBUG_WITH_TYPE("gen", errs() << "bcf: Erase condition instruction:"
-                                  << *((Instruction *)*i) << "\n");
+                                  << *((Instruction *)*I) << "\n");
     (*I)->eraseFromParent();
   }
 
