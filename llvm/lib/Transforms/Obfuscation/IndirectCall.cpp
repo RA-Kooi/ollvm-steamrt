@@ -18,7 +18,9 @@ PreservedAnalyses IndirectCallPass::run(Function &F,
   if (shouldObfuscate(IcallEnabled, &F, "icall")) {
     std::lock_guard<std::mutex> Guard(IPO.Lock);
 
-    runOnFunction(F);
+    if (!runOnFunction(F))
+      return PreservedAnalyses::all();
+
     return PreservedAnalyses::none();
   }
   return PreservedAnalyses::all();
