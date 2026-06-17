@@ -576,6 +576,7 @@ FUNCTION_PASS("sub", SubstitutionPass())
 FUNCTION_PASS("bcf", BogusControlFlowPass())
 FUNCTION_PASS("igv", IndirectGlobalVariablePass())
 FUNCTION_PASS("ibr", IndirectBranchPass())
+FUNCTION_PASS("laa", AliasAccess())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS

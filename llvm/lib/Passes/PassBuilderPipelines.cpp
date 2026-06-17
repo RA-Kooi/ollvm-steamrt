@@ -85,6 +85,7 @@
 #include "llvm/Transforms/Instrumentation/PGOCtxProfLowering.h"
 #include "llvm/Transforms/Instrumentation/PGOForceFunctionAttrs.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
+#include "llvm/Transforms/Obfuscation/AliasAccess.h"
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/Transforms/Obfuscation/Flattening.h"
 #include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
@@ -1767,6 +1768,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   MPM.addPass(IPObfuscationContextPass());
 
   FPM = FunctionPassManager();
+  FPM.addPass(AliasAccess());
   FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectGlobalVariablePass());
   FPM.addPass(IndirectBranchPass());
@@ -2458,6 +2460,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
+  FPM.addPass(AliasAccess());
   FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectGlobalVariablePass());
   FPM.addPass(IndirectBranchPass());
