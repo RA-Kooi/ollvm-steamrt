@@ -14,13 +14,13 @@ static cl::opt<bool> IcallEnabled("icall", cl::init(false),
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
   if (shouldObfuscate(IcallEnabled, &F, "icall")) {
-    doIndirctCall(F);
+    runOnFunction(F);
     return PreservedAnalyses::none();
   }
   return PreservedAnalyses::all();
 }
 
-bool IndirectCallPass::doIndirctCall(Function &Fn) {
+bool IndirectCallPass::runOnFunction(Function &Fn) {
   LLVMContext &Ctx = Fn.getContext();
 
   CalleeNumbering.clear();
@@ -43,12 +43,11 @@ bool IndirectCallPass::doIndirctCall(Function &Fn) {
     IntType = Type::getInt64Ty(Ctx);
   }
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
-  ConstantInt *EncKey1 = ConstantInt::get(IntType, -V, false);
 
   Value *MySecret = ConstantInt::get(IntType, 0, true);
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
-  GlobalVariable *Targets = getIndirectCallees(Fn, EncKey1);
+  GlobalVariable *Targets = getIndirectCallees(Fn, EncKey);
 
   for (auto *CI : CallSites) {
     SmallVector<Value *, 8> Args;
@@ -83,12 +82,20 @@ bool IndirectCallPass::doIndirctCall(Function &Fn) {
       ArgAttrVec.push_back(CallPAL.getParamAttrs(I1));
     }
 
-    Value *Secret = IRB.CreateAdd(EncKey, MySecret);
-    Value *DestAddr = IRB.CreateGEP(Type::getInt8Ty(Ctx), EncDestAddr, Secret);
+    AttributeList NewCallPAL =
+        AttributeList::get(IRB.getContext(), CallPAL.getFnAttrs(),
+                           CallPAL.getRetAttrs(), ArgAttrVec);
+
+    Value *Secret = IRB.CreateSub(EncKey, MySecret);
+    Value *DestAddr =
+        IRB.CreateGEP(PointerType::getUnqual(Ctx), EncDestAddr, Secret);
 
     Value *FnPtr = IRB.CreateBitCast(DestAddr, FTy->getPointerTo());
     FnPtr->setName("Call_" + Callee->getName());
-    CB->setCalledOperand(FnPtr);
+    CallInst *NewCall = IRB.CreateCall(FTy, FnPtr, Args, CB->getName());
+    NewCall->setAttributes(NewCallPAL);
+    CB->replaceAllUsesWith(NewCall);
+    CB->eraseFromParent();
   }
 
   return true;
@@ -105,13 +112,13 @@ GlobalVariable *IndirectCallPass::getIndirectCallees(Function &F,
   std::vector<Constant *> Elements;
   for (Function *Callee : Callees) {
     Constant *CE = ConstantExpr::getBitCast(
-        Callee, llvm::PointerType::get(Type::getInt8Ty(F.getContext()), 0));
-    CE = ConstantExpr::getGetElementPtr(Type::getInt8Ty(F.getContext()), CE,
+        Callee, llvm::PointerType::get(Type::getInt64Ty(F.getContext()), 0));
+    CE = ConstantExpr::getGetElementPtr(Type::getInt64Ty(F.getContext()), CE,
                                         EncKey);
     Elements.push_back(CE);
   }
   ArrayType *ATy =
-      ArrayType::get(Type::getInt8Ty(F.getContext()), Elements.size());
+      ArrayType::get(PointerType::getUnqual(F.getContext()), Elements.size());
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
   GV =
       new GlobalVariable(*F.getParent(), ATy, false,
