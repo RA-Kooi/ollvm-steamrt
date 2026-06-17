@@ -1735,6 +1735,14 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
 
+  MPM.addPass(StringEncryptionPass());
+
+  FunctionPassManager FPM;
+  FPM.addPass(BogusControlFlowPass());
+  FPM.addPass(SplitBasicBlockPass());
+  FPM.addPass(FlatteningPass());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
   if (PGOOpt && PGOOpt->DebugInfoForProfiling)
     MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
 
@@ -1756,6 +1764,17 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   if (isLTOPreLink(Phase))
     addRequiredLTOPreLinkPasses(MPM);
+
+  MPM.addPass(IPObfuscationContextPass());
+
+  FPM = FunctionPassManager();
+  FPM.addPass(IndirectCallPass());
+  FPM.addPass(SubstitutionPass());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  MPM.addPass(IndirectBranchPass());
+  MPM.addPass(IndirectGlobalVariablePass());
+
   return MPM;
 }
 
