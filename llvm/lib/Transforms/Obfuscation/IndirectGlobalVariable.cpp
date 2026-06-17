@@ -43,20 +43,16 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Function &F,
   lowerConstantExpr(F);
   numberGlobalVariable(F);
 
-  if (GlobalVariables.empty()) {
+  if (GlobalVariables.empty())
     return PreservedAnalyses::all();
-  }
 
   uint64_t V = RandomEngine.getUint64T();
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
-  unsigned PointerSize =
-      F.getEntryBlock().getModule()->getDataLayout().getTypeAllocSize(
-          PointerType::getUnqual(F.getContext()));
+  unsigned PointerSize = F.getParent()->getDataLayout().getPointerSize();
 
-  if (PointerSize == 8) {
+  if (PointerSize == 8)
     IntType = Type::getInt64Ty(Ctx);
-  }
 
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
@@ -80,66 +76,69 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Function &F,
       continue;
     }
 
+    // clang-format off
+    auto BuildSharedIR =
+    [
+      this,
+      &IntType,
+      &Zero,
+      &GVars,
+      &SecretInfo,
+      &EncKey,
+      &MySecret,
+      &Ctx
+    ](GlobalVariable *GV, IRBuilder<> &IRB) -> Value * {
+      // clang-format on
+      Value *Idx = ConstantInt::get(IntType, GVNumbering[GV]);
+      Value *GEP = IRB.CreateGEP(GVars->getValueType(), GVars, {Zero, Idx});
+      LoadInst *EncGVAddr = IRB.CreateLoad(GEP->getType(), GEP, GV->getName());
+
+      Constant *X;
+      if (SecretInfo)
+        X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
+      else
+        X = ConstantExpr::getSub(Zero, EncKey);
+
+      Value *Secret = IRB.CreateAdd(X, MySecret);
+      return IRB.CreateGEP(PointerType::getUnqual(Ctx), EncGVAddr, Secret);
+    };
+
     if (PHINode *PHI = dyn_cast<PHINode>(Inst)) {
       for (unsigned int I = 0; I < PHI->getNumIncomingValues(); ++I) {
         Value *Val = PHI->getIncomingValue(I);
-        if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Val)) {
-          if (GVNumbering.count(GV) == 0) {
-            continue;
-          }
+        GlobalVariable *GV = dyn_cast<GlobalVariable>(Val);
+        if (!GV)
+          continue;
 
-          Instruction *IP = PHI->getIncomingBlock(I)->getTerminator();
-          IRBuilder<> IRB(IP);
+        if (GVNumbering.count(GV) == 0)
+          continue;
 
-          Value *Idx = ConstantInt::get(IntType, GVNumbering[GV]);
-          Value *GEP = IRB.CreateGEP(GVars->getValueType(), GVars, {Zero, Idx});
-          LoadInst *EncGVAddr =
-              IRB.CreateLoad(GEP->getType(), GEP, GV->getName());
+        Instruction *IP = PHI->getIncomingBlock(I)->getTerminator();
+        IRBuilder<> IRB(IP);
 
-          Constant *X;
-          if (SecretInfo)
-            X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
-          else
-            X = ConstantExpr::getSub(Zero, EncKey);
-
-          Value *Secret = IRB.CreateAdd(X, MySecret);
-          Value *GVAddr =
-              IRB.CreateGEP(PointerType::getUnqual(Ctx), EncGVAddr, Secret);
-
-          GVAddr = IRB.CreateBitCast(GVAddr, GV->getType());
-          GVAddr->setName("IndGV0_");
-          PHI->setIncomingValue(I, GVAddr);
-        }
+        Value *GVAddr = BuildSharedIR(GV, IRB);
+        GVAddr = IRB.CreateBitCast(GVAddr, GV->getType());
+        GVAddr->setName("IndGV0_");
+        PHI->setIncomingValue(I, GVAddr);
       }
+
       return PreservedAnalyses::none();
     }
 
     for (User::op_iterator Op = Inst->op_begin(); Op != Inst->op_end(); ++Op) {
-      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*Op)) {
-        if (GVNumbering.count(GV) == 0) {
-          continue;
-        }
+      GlobalVariable *GV = dyn_cast<GlobalVariable>(*Op);
+      if (!GV)
+        continue;
 
-        IRBuilder<> IRB(Inst);
-        Value *Idx = ConstantInt::get(IntType, GVNumbering[GV]);
-        Value *GEP = IRB.CreateGEP(GVars->getValueType(), GVars, {Zero, Idx});
-        LoadInst *EncGVAddr =
-            IRB.CreateLoad(GEP->getType(), GEP, GV->getName());
+      if (GVNumbering.count(GV) == 0)
+        continue;
 
-        Constant *X;
-        if (SecretInfo)
-          X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
-        else
-          X = ConstantExpr::getSub(Zero, EncKey);
+      IRBuilder<> IRB(Inst);
 
-        Value *Secret = IRB.CreateAdd(X, MySecret);
-        Value *GVAddr =
-            IRB.CreateGEP(PointerType::getUnqual(Ctx), EncGVAddr, Secret);
-
-        GVAddr = IRB.CreateBitCast(GVAddr, GV->getType());
-        GVAddr->setName("IndGV1_");
-        Inst->replaceUsesOfWith(GV, GVAddr);
-      }
+      Value *GVAddr = BuildSharedIR(GV, IRB);
+      GVAddr = IRB.CreateBitCast(GVAddr, GV->getType());
+      GVAddr->setName("IndGV1_");
+      Inst->replaceUsesOfWith(GV, GVAddr);
     }
   }
 
@@ -150,13 +149,17 @@ void IndirectGlobalVariablePass::numberGlobalVariable(Function &F) {
   for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     for (User::op_iterator Op = (*I).op_begin(); Op != (*I).op_end(); ++Op) {
       Value *Val = *Op;
-      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Val)) {
-        if (!GV->isThreadLocal() && GVNumbering.count(GV) == 0 &&
-            !GV->isDLLImportDependent()) {
-          GVNumbering[GV] = GlobalVariables.size();
-          GlobalVariables.push_back((GlobalVariable *)Val);
-        }
-      }
+      GlobalVariable *GV = dyn_cast<GlobalVariable>(Val);
+
+      if (!GV)
+        continue;
+
+      if (GV->isThreadLocal() || GVNumbering.count(GV) > 0 ||
+          GV->isDLLImportDependent())
+        continue;
+
+      GVNumbering[GV] = GlobalVariables.size();
+      GlobalVariables.push_back((GlobalVariable *)Val);
     }
   }
 }
@@ -169,21 +172,37 @@ IndirectGlobalVariablePass::getIndirectGlobalVariables(Function &F,
   if (GV)
     return GV;
 
+  // clang-format off
   std::vector<Constant *> Elements;
   for (GlobalVariable *GVar : GlobalVariables) {
     Constant *CE = ConstantExpr::getBitCast(
-        GVar, llvm::PointerType::get(Type::getInt64Ty(F.getContext()), 0));
-    CE = ConstantExpr::getGetElementPtr(Type::getInt64Ty(F.getContext()), CE,
-                                        EncKey);
+        GVar,
+        PointerType::getUnqual(F.getContext()));
+
+    CE = ConstantExpr::getGetElementPtr(
+        Type::getInt64Ty(F.getContext()),
+        CE,
+        EncKey);
+
     Elements.push_back(CE);
   }
 
-  ArrayType *ATy =
-      ArrayType::get(PointerType::getUnqual(F.getContext()), Elements.size());
+  ArrayType *ATy = ArrayType::get(
+      PointerType::getUnqual(F.getContext()),
+      Elements.size());
+
   Constant *CA = ConstantArray::get(ATy, ArrayRef<Constant *>(Elements));
-  GV =
-      new GlobalVariable(*F.getParent(), ATy, false,
-                         GlobalValue::LinkageTypes::PrivateLinkage, CA, GVName);
+
+  GV = new GlobalVariable(
+      *F.getParent(),
+      ATy,
+      false,
+      GlobalValue::LinkageTypes::PrivateLinkage,
+      CA,
+      GVName);
+  // clang-format on
+
   appendToCompilerUsed(*F.getParent(), {GV});
+
   return GV;
 }
