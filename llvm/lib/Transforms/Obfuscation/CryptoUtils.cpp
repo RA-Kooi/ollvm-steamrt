@@ -729,8 +729,8 @@ void CryptoUtils::populatePool() {
 
 #if defined(_WIN64) || defined(_WIN32)
 // sic! don't change include order
-#include <wincrypt.h>
 #include <windows.h>
+#include <wincrypt.h>
 
 struct WinDevRandom {
   WinDevRandom() : m_hcryptProv{0}, m_last_read{0} {
