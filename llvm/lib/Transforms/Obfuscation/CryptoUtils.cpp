@@ -615,7 +615,7 @@ const uint32_t Masks[32] = {
 CryptoUtils::CryptoUtils() { Seeded = false; }
 
 unsigned CryptoUtils::scramble32(const unsigned In, const char Key[16]) {
-  assert(key != NULL && "CryptoUtils::scramble key=NULL");
+  assert(Key != NULL && "CryptoUtils::scramble Key=NULL");
 
   unsigned TmpA, TmpB;
 
@@ -803,7 +803,7 @@ bool CryptoUtils::prngSeed() {
 
   Devrandom.close();
   DEBUG_WITH_TYPE("cryptoutils",
-                  dbgs() << "cryptoutils seeded with " << dev << "\n");
+                  dbgs() << "cryptoutils seeded with " << Dev << "\n");
 
   std::memset(Ctr, 0, 16);
 
@@ -836,8 +836,8 @@ void CryptoUtils::getBytes(char *Buffer, const int Len) {
 
   int Sofar = 0, Available = 0;
 
-  assert(buffer != NULL && "CryptoUtils::get_bytes buffer=NULL");
-  assert(len > 0 && "CryptoUtils::get_bytes len <= 0");
+  assert(Buffer != NULL && "CryptoUtils::getBytes Buffer=NULL");
+  assert(Len > 0 && "CryptoUtils::getBytes Len <= 0");
 
   StatsGetBytes++;
 
@@ -946,8 +946,8 @@ void CryptoUtils::aesComputeKs(uint32_t *Ks, const char *K) {
   int I;
   uint32_t *P, Tmp;
 
-  assert(ks != NULL);
-  assert(k != NULL);
+  assert(Ks != NULL);
+  assert(K != NULL);
 
   LOAD32H(Ks[0], K);
   LOAD32H(Ks[1], K + 4);
@@ -1040,8 +1040,8 @@ int CryptoUtils::sha256Process(sha256_state *Md, const unsigned char *In,
                                unsigned long Inlen) {
   unsigned long N;
   int Err;
-  assert(md != NULL && "CryptoUtils::sha256_process md=NULL");
-  assert(in != NULL && "CryptoUtils::sha256_process in=NULL");
+  assert(Md != NULL && "CryptoUtils::sha256Process Md=NULL");
+  assert(In != NULL && "CryptoUtils::sha256Process In=NULL");
 
   if (Md->Curlen > sizeof(Md->Buf)) {
     return 1;
@@ -1171,7 +1171,7 @@ int CryptoUtils::sha256Compress(sha256_state *Md, const unsigned char *Buf) {
    @return CRYPT_OK if successful
 */
 int CryptoUtils::sha256Init(sha256_state *Md) {
-  assert(md != NULL && "CryptoUtils::sha256_init md=NULL");
+  assert(Md != NULL && "CryptoUtils::sha256Init Md=NULL");
 
   Md->Curlen = 0;
   Md->Length = 0;
@@ -1195,8 +1195,8 @@ int CryptoUtils::sha256Init(sha256_state *Md) {
 int CryptoUtils::sha256Done(sha256_state *Md, unsigned char *Out) {
   int I;
 
-  assert(md != NULL && "CryptoUtils::sha256_done md=NULL");
-  assert(out != NULL && "CryptoUtils::sha256_done out=NULL");
+  assert(Md != NULL && "CryptoUtils::sha256Done Md=NULL");
+  assert(Out != NULL && "CryptoUtils::sha256Done Out=NULL");
 
   if (Md->Curlen >= sizeof(Md->Buf)) {
     return 1;
