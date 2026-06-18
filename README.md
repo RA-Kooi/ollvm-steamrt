@@ -44,6 +44,8 @@ Prefixing the annotation with `no` disables that specific pass for that function
   Generates structs with a random amount of members and a corresponding getter  
   function that reads the local variable from the struct. Replaces local variable  
   accesses with random instances of these getters to add a layer of indirection.
+- Linear MBA `-mllvm -lmba`  
+  Replaces bitwise operators with linear MBA expressions.
 
 # A note on performance
 
