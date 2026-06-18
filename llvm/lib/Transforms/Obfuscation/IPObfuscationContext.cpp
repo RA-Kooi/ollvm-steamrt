@@ -248,8 +248,7 @@ IPObfuscationContext::allocaSecretSlot(Function &F) {
   AllocaInst *CalleeSlot = IRB.CreateAlloca(I32Ty, nullptr, "CalleeSlot");
   CalleeSlot->setAlignment(Align(4));
 
-  CryptoUtils RandomEngine;
-  uint32_t V = RandomEngine.getUint32T();
+  uint32_t V = Cryptoutils->getUint32T();
   ConstantInt *SecretCI = ConstantInt::get(I32Ty, V, false);
   IRB.CreateStore(SecretCI, CallerSlot);
   LoadInst *MySecret =
@@ -257,6 +256,7 @@ IPObfuscationContext::allocaSecretSlot(Function &F) {
 
   std::unique_ptr<IPOInfo> Info(
       new IPOInfo(CallerSlot, CalleeSlot, MySecret, SecretCI));
+
   return Info;
 }
 

@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -46,7 +47,7 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Function &F,
   if (GlobalVariables.empty())
     return PreservedAnalyses::all();
 
-  uint64_t V = RandomEngine.getUint64T();
+  uint64_t V = Cryptoutils->getUint64T();
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
   unsigned PointerSize = F.getParent()->getDataLayout().getPointerSize();

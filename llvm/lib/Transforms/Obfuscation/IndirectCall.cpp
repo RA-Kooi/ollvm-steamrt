@@ -2,6 +2,7 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Obfuscation/compat/CallSite.h"
@@ -38,7 +39,7 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
   if (Callees.empty())
     return false;
 
-  uint64_t V = RandomEngine.getUint64T();
+  uint64_t V = Cryptoutils->getUint64T();
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
   unsigned PointerSize = Fn.getParent()->getDataLayout().getPointerSize();

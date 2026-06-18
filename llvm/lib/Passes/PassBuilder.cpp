@@ -318,6 +318,7 @@
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 #include "llvm/Transforms/Obfuscation/AliasAccess.h"
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Flattening.h"
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
 #include "llvm/Transforms/Obfuscation/IndirectCall.h"

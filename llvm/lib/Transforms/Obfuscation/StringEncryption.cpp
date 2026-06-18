@@ -219,7 +219,7 @@ PreservedAnalyses StringEncryptionPass::run(Module &M,
 
 void PassState::getRandomBytes(std::vector<uint8_t> &Bytes, uint32_t MinSize,
                                uint32_t MaxSize) {
-  uint32_t N = RandomEngine.getUint32T();
+  uint32_t N = Cryptoutils->getUint32T();
   uint32_t Len;
 
   assert(MaxSize >= MinSize);
@@ -231,7 +231,7 @@ void PassState::getRandomBytes(std::vector<uint8_t> &Bytes, uint32_t MinSize,
   }
 
   Bytes.resize(Len);
-  RandomEngine.getBytes(reinterpret_cast<char *>(Bytes.data()), Len);
+  Cryptoutils->getBytes(reinterpret_cast<char *>(Bytes.data()), Len);
 }
 
 //

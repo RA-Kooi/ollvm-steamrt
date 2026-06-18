@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -53,7 +54,7 @@ PreservedAnalyses IndirectBranchPass::run(Function &F,
   if (BBNumbering.empty())
     return PreservedAnalyses::all();
 
-  uint64_t V = RandomEngine.getUint64T();
+  uint64_t V = Cryptoutils->getUint64T();
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
   unsigned PointerSize = F.getParent()->getDataLayout().getPointerSize();
@@ -134,8 +135,7 @@ void IndirectBranchPass::numberBasicBlock(Function &F) {
     }
   }
 
-  // CHECK(Rafaël): Does this break reproducibility?
-  long Seed = RandomEngine.getUint32T();
+  long Seed = Cryptoutils->getUint32T();
   std::default_random_engine E(Seed);
   std::shuffle(BBTargets.begin(), BBTargets.end(), E);
 
