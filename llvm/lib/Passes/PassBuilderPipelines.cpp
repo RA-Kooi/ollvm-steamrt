@@ -1613,6 +1613,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
     addRequiredLTOPreLinkPasses(MPM);
 
   FunctionPassManager FPM;
+  FPM.addPass(AliasAccess());
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
@@ -1622,7 +1623,6 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   MPM.addPass(IPObfuscationContextPass());
 
   FPM = FunctionPassManager();
-  FPM.addPass(AliasAccess());
   FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectGlobalVariablePass());
   FPM.addPass(IndirectBranchPass());
@@ -2189,10 +2189,10 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   MPM.addPass(IPObfuscationContextPass());
 
   FunctionPassManager FPM;
+  FPM.addPass(AliasAccess());
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
-  FPM.addPass(AliasAccess());
   FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectGlobalVariablePass());
   FPM.addPass(IndirectBranchPass());
