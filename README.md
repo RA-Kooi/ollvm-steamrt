@@ -33,7 +33,8 @@ Prefixing the annotation with `no` disables that specific pass for that function
 ## Goron features
 - Indirect branching `-mllvm -ibr`
 - Indirect function calls `-mllvm -icall`
-- String obfuscation `-mllvm -sobf`
+- String obfuscation `-mllvm -sobf`  
+  Does not work as a function annotation (for now?).
 - Indirect global variables `-mllvm -igv`  
   Puts global variables in a table adding a layer of indirection.
 
