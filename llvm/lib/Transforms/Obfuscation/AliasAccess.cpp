@@ -16,6 +16,8 @@
 #include <type_traits>
 #include <vector>
 
+#define DEBUG_TYPE "aliaslocal"
+
 using namespace llvm;
 
 constexpr int DefaultBranchNum = 6;
