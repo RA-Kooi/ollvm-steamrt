@@ -1765,7 +1765,6 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   FPM.addPass(FlatteningPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
-  MPM.addPass(StringEncryptionPass());
   MPM.addPass(IPObfuscationContextPass());
 
   FPM = FunctionPassManager();
@@ -1774,6 +1773,8 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  MPM.addPass(StringEncryptionPass());
 
   return MPM;
 }
@@ -2453,7 +2454,6 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   invokeOptimizerLastEPCallbacks(MPM, Level, Phase);
 
-  MPM.addPass(StringEncryptionPass());
   MPM.addPass(IPObfuscationContextPass());
 
   FunctionPassManager FPM;
@@ -2466,6 +2466,8 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  MPM.addPass(StringEncryptionPass());
 
   if (isLTOPreLink(Phase))
     addRequiredLTOPreLinkPasses(MPM);
