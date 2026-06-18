@@ -4,16 +4,12 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
-#include "CryptoUtils.h"
-
 #include <map>
 #include <vector>
 
 namespace llvm {
 class IndirectBranchPass : public PassInfoMixin<IndirectBranchPass> {
 public:
-  IndirectBranchPass() : BBNumbering(), BBTargets(), RandomEngine() {}
-
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
   static bool isRequired() { return true; }
 
@@ -24,7 +20,6 @@ private:
 private:
   std::map<BasicBlock *, unsigned> BBNumbering;
   std::vector<BasicBlock *> BBTargets; // all conditional branch targets
-  CryptoUtils RandomEngine;
 };
 } // namespace llvm
 

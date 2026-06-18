@@ -122,9 +122,6 @@ bool llvm::shouldObfuscate(bool Flag, Function *F,
     return false;
   }
 
-  // outs() << "[Soule] function: " << f->getName().str() << " # annotation: "
-  // << readAnnotate(f) << "\n";
-
   //  We have to check the nofla flag first
   //  Because .find("fla") is true for a string like "fla" or
   //  "nofla"
