@@ -92,6 +92,7 @@
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
 #include "llvm/Transforms/Obfuscation/IndirectCall.h"
 #include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h"
+#include "llvm/Transforms/Obfuscation/LinearMBA.h"
 #include "llvm/Transforms/Obfuscation/SplitBasicBlock.h"
 #include "llvm/Transforms/Obfuscation/StringEncryption.h"
 #include "llvm/Transforms/Obfuscation/Substitution.h"
@@ -1768,6 +1769,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   MPM.addPass(IPObfuscationContextPass());
 
   FPM = FunctionPassManager();
+  FPM.addPass(LinearMBA());
   FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
@@ -2464,6 +2466,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
+  FPM.addPass(LinearMBA());
   FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
