@@ -24,7 +24,7 @@ Prefixing the annotation with `no` disables that specific pass for that function
 - Basic block splitting `-mllvm -split`
   - `-mllvm -split_num=3` controls the amount of times each block is split.
 - Instruction substitution `-mllvm -sub`
-- Seeding of the PRNG `-mllvm aesSeed=3ec1795344a7f787454c09c755e215001`  
+- Seeding of the PRNG `-mllvm aesSeed=3ec1795344a7f787454c09c755e2150`  
   The seed must be a 32 character long string of hexadecimal digits (leading 0x accepted).
 
 ## Hikari features
