@@ -161,7 +161,7 @@ static void randomSelectTerms(std::vector<LinearMBATerm> &SelectedTerms) {
       Available.push_back(&BT);
   }
 
-  uint64_t Seed = Cryptoutils->getUint64T();
+  uint32_t Seed = Cryptoutils->getUint32T();
   std::shuffle(Available.begin(), Available.end(), std::mt19937{Seed});
 
   int Num = 5 - (int)SelectedTerms.size();
@@ -197,7 +197,7 @@ static Value *buildLinearMBA(BinaryOperator *OriginalInsn,
                              std::vector<LinearMBATerm> &Terms) {
   IRBuilder<> IRB(OriginalInsn);
 
-  uint64_t Seed = Cryptoutils->getUint64T();
+  uint32_t Seed = Cryptoutils->getUint32T();
   std::shuffle(Terms.begin(), Terms.end(), std::mt19937{Seed});
 
   bool NSW = OriginalInsn->hasNoSignedWrap();
