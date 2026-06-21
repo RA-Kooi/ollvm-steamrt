@@ -88,7 +88,6 @@
 #include "llvm/Transforms/Obfuscation/AliasAccess.h"
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/Transforms/Obfuscation/Flattening.h"
-#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
 #include "llvm/Transforms/Obfuscation/IndirectCall.h"
 #include "llvm/Transforms/Obfuscation/IndirectGlobalVariable.h"
@@ -1766,8 +1765,6 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   FPM.addPass(FlatteningPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
-  MPM.addPass(IPObfuscationContextPass());
-
   FPM = FunctionPassManager();
   FPM.addPass(LinearMBA());
   FPM.addPass(IndirectCallPass());
@@ -2458,8 +2455,6 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
     MPM.addPass(AllocTokenPass());
 
   invokeOptimizerLastEPCallbacks(MPM, Level, Phase);
-
-  MPM.addPass(IPObfuscationContextPass());
 
   FunctionPassManager FPM;
   FPM.addPass(AliasAccess());
