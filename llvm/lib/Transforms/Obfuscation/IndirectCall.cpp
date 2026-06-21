@@ -3,11 +3,9 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
-#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Obfuscation/compat/CallSite.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include <mutex>
 
 using namespace llvm;
 
@@ -17,8 +15,6 @@ static cl::opt<bool> IcallEnabled("icall", cl::init(false),
 PreservedAnalyses IndirectCallPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
   if (shouldObfuscate(IcallEnabled, &F, "icall")) {
-    std::lock_guard<std::mutex> Guard(IPO.Lock);
-
     if (!runOnFunction(F))
       return PreservedAnalyses::all();
 
@@ -49,13 +45,7 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
 
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
-  const IPObfuscationContext::IPOInfo *SecretInfo = IPO.getIPOInfo(&Fn);
-
-  Value *MySecret = nullptr;
-  if (SecretInfo)
-    MySecret = SecretInfo->SecretLI;
-  else
-    MySecret = ConstantInt::get(IntType, 0, true);
+  Value *MySecret = ConstantInt::get(IntType, 0, true);
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
   GlobalVariable *Targets = getIndirectCallees(Fn, EncKey);
@@ -79,11 +69,7 @@ bool IndirectCallPass::runOnFunction(Function &Fn) {
     LoadInst *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, CI->getName());
     // clang-format on
 
-    Constant *X;
-    if (SecretInfo)
-      X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
-    else
-      X = ConstantExpr::getSub(Zero, EncKey);
+    Constant *X = ConstantExpr::getSub(Zero, EncKey);
 
     const AttributeList &CallPAL = CB->getAttributes();
     auto *I = CB->arg_begin();

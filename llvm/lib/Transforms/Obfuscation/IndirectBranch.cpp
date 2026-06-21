@@ -20,7 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
-#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -64,13 +63,7 @@ PreservedAnalyses IndirectBranchPass::run(Function &F,
 
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
-  const IPObfuscationContext::IPOInfo *SecretInfo = IPO.getIPOInfo(&F);
-
-  Value *MySecret = nullptr;
-  if (SecretInfo)
-    MySecret = SecretInfo->SecretLI;
-  else
-    MySecret = ConstantInt::get(IntType, 0, true);
+  Value *MySecret = ConstantInt::get(IntType, 0, true);
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
   GlobalVariable *DestBBs = getIndirectTargets(F, EncKey);
@@ -95,11 +88,7 @@ PreservedAnalyses IndirectBranchPass::run(Function &F,
 
     // Use IPO context to compute the encryption key
     // X = FuncSecret - EncKey
-    Constant *X;
-    if (SecretInfo)
-      X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
-    else
-      X = ConstantExpr::getSub(Zero, EncKey);
+    Constant *X = ConstantExpr::getSub(Zero, EncKey);
 
     // -EncKey = X - FuncSecret
     Value *DecKey = IRB.CreateAdd(X, MySecret);

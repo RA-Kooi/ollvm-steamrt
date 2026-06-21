@@ -21,7 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
-#include "llvm/Transforms/Obfuscation/IPObfuscationContext.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
@@ -57,13 +56,7 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Function &F,
 
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
-  const IPObfuscationContext::IPOInfo *SecretInfo = IPO.getIPOInfo(&F);
-
-  Value *MySecret;
-  if (SecretInfo)
-    MySecret = SecretInfo->SecretLI;
-  else
-    MySecret = ConstantInt::get(IntType, 0, true);
+  Value *MySecret = ConstantInt::get(IntType, 0, true);
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
   GlobalVariable *GVars = getIndirectGlobalVariables(F, EncKey);
@@ -84,7 +77,6 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Function &F,
       &IntType,
       &Zero,
       &GVars,
-      &SecretInfo,
       &EncKey,
       &MySecret,
       &Ctx
@@ -94,13 +86,9 @@ PreservedAnalyses IndirectGlobalVariablePass::run(Function &F,
       Value *GEP = IRB.CreateGEP(GVars->getValueType(), GVars, {Zero, Idx});
       LoadInst *EncGVAddr = IRB.CreateLoad(GEP->getType(), GEP, GV->getName());
 
-      Constant *X;
-      if (SecretInfo)
-        X = ConstantExpr::getSub(SecretInfo->SecretCI, EncKey);
-      else
-        X = ConstantExpr::getSub(Zero, EncKey);
-
+      Constant *X = ConstantExpr::getSub(Zero, EncKey);
       Value *Secret = IRB.CreateAdd(X, MySecret);
+
       return IRB.CreateGEP(PointerType::getUnqual(Ctx), EncGVAddr, Secret);
     };
 
