@@ -96,10 +96,10 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
 
   // Create switch variable and set as it
   SwitchVar = new AllocaInst(Type::getInt32Ty(F->getContext()),
-                             DL.getAllocaAddrSpace(), "switchVar", OldTerm);
+                             DL.getAllocaAddrSpace(), "switchVar", OldTerm->getIterator());
   SwitchVarAddr =
-      new AllocaInst(Type::getInt32Ty(F->getContext())->getPointerTo(),
-                     DL.getAllocaAddrSpace(), "", OldTerm);
+      new AllocaInst(PointerType::get(Type::getInt32Ty(F->getContext())->getContext(), 0),
+                     DL.getAllocaAddrSpace(), "", OldTerm->getIterator());
 
   // Remove jump
   OldTerm->eraseFromParent();
@@ -207,7 +207,7 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
       BranchInst *Br = cast<BranchInst>(I->getTerminator());
       SelectInst *Sel =
           SelectInst::Create(Br->getCondition(), NumCaseTrue, NumCaseFalse, "",
-                             I->getTerminator());
+                             I->getTerminator()->getIterator());
 
       // Erase terminator
       I->getTerminator()->eraseFromParent();

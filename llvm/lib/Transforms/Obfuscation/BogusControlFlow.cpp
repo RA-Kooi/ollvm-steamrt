@@ -303,9 +303,9 @@ static void addBogusFlow(BasicBlock *Basic, Function &F) {
   // part, because they actually are updated in the second part according to
   // them.
   BasicBlock::iterator I1 = Basic->begin();
-  if (Basic->getFirstNonPHIOrDbgOrLifetime())
+  if (Basic->getFirstNonPHIOrDbgOrLifetime() != Basic->end())
     I1 = (BasicBlock::iterator)Basic->getFirstNonPHIOrDbgOrLifetime();
-  if (Basic->getFirstNonPHI()->isEHPad())
+  if (Basic->getFirstNonPHIIt()->isEHPad())
     return;
   // Fix Verifier.cpp: "CatchPadInst not the first non-PHI instruction in the
   // block.", "The unwind destination does not have an exception handling
@@ -477,19 +477,19 @@ BasicBlock *createAlteredBasicBlock(BasicBlock *Basic, const Twine &Name,
           case 0:                                   // do nothing
             break;
           case 1:
-            Op = BinaryOperator::CreateNeg(I->getOperand(0), *Var, &*I);
+            Op = BinaryOperator::CreateNeg(I->getOperand(0), *Var, I->getIterator());
             Op1 = BinaryOperator::Create(Instruction::Add, Op, I->getOperand(1),
-                                         "gen", &*I);
+                                         "gen", I->getIterator());
             break;
           case 2:
             Op1 = BinaryOperator::Create(Instruction::Sub, I->getOperand(0),
-                                         I->getOperand(1), *Var, &*I);
+                                         I->getOperand(1), *Var, I->getIterator());
             Op = BinaryOperator::Create(Instruction::Mul, Op1, I->getOperand(1),
-                                        "gen", &*I);
+                                        "gen", I->getIterator());
             break;
           case 3:
             Op = BinaryOperator::Create(Instruction::Shl, I->getOperand(0),
-                                        I->getOperand(1), *Var, &*I);
+                                        I->getOperand(1), *Var, I->getIterator());
             break;
           }
         }
@@ -504,15 +504,15 @@ BasicBlock *createAlteredBasicBlock(BasicBlock *Basic, const Twine &Name,
           case 0:                                   // do nothing
             break;
           case 1:
-            Op = UnaryOperator::CreateFNeg(I->getOperand(0), *Var, &*I);
+            Op = UnaryOperator::CreateFNeg(I->getOperand(0), *Var, I->getIterator());
             Op1 = BinaryOperator::Create(Instruction::FAdd, Op,
-                                         I->getOperand(1), "gen", &*I);
+                                         I->getOperand(1), "gen", I->getIterator());
             break;
           case 2:
             Op = BinaryOperator::Create(Instruction::FSub, I->getOperand(0),
-                                        I->getOperand(1), *Var, &*I);
+                                        I->getOperand(1), *Var, I->getIterator());
             Op1 = BinaryOperator::Create(Instruction::FMul, Op,
-                                         I->getOperand(1), "gen", &*I);
+                                         I->getOperand(1), "gen", I->getIterator());
             break;
           }
         }
@@ -674,24 +674,24 @@ static bool doF(Module &M, Function &F) {
   for (std::vector<Instruction *>::iterator I = ToEdit.begin();
        I != ToEdit.end(); ++I) {
     // if y < 10 || x*(x+1) % 2 == 0
-    OpX = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)X, "", (*I));
-    OpY = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)Y, "", (*I));
+    OpX = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)X, "", (*I)->getIterator());
+    OpY = new LoadInst(Type::getInt32Ty(M.getContext()), (Value *)Y, "", (*I)->getIterator());
 
     Op = BinaryOperator::Create(
         Instruction::Sub, (Value *)OpX,
-        ConstantInt::get(Type::getInt32Ty(M.getContext()), 1, false), "", (*I));
-    Op1 = BinaryOperator::Create(Instruction::Mul, (Value *)OpX, Op, "", (*I));
+        ConstantInt::get(Type::getInt32Ty(M.getContext()), 1, false), "", (*I)->getIterator());
+    Op1 = BinaryOperator::Create(Instruction::Mul, (Value *)OpX, Op, "", (*I)->getIterator());
     Op = BinaryOperator::Create(
         Instruction::URem, Op1,
-        ConstantInt::get(Type::getInt32Ty(M.getContext()), 2, false), "", (*I));
+        ConstantInt::get(Type::getInt32Ty(M.getContext()), 2, false), "", (*I)->getIterator());
     Condition = new ICmpInst(
-        (*I), ICmpInst::ICMP_EQ, Op,
+        (*I)->getIterator(), ICmpInst::ICMP_EQ, Op,
         ConstantInt::get(Type::getInt32Ty(M.getContext()), 0, false));
     Condition2 = new ICmpInst(
-        (*I), ICmpInst::ICMP_SLT, OpY,
+        (*I)->getIterator(), ICmpInst::ICMP_SLT, OpY,
         ConstantInt::get(Type::getInt32Ty(M.getContext()), 10, false));
     Op1 = BinaryOperator::Create(Instruction::Or, (Value *)Condition,
-                                 (Value *)Condition2, "", (*I));
+                                 (Value *)Condition2, "", (*I)->getIterator());
 
     BranchInst::Create(((BranchInst *)*I)->getSuccessor(0),
                        ((BranchInst *)*I)->getSuccessor(1), (Value *)Op1,
