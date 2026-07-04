@@ -797,7 +797,7 @@ bool CryptoUtils::prngSeed() {
   Devrandom.read(Key, 16);
   auto const Gc = Devrandom.gcount();
   if (Gc != 16) {
-    errs() << "Cannot read enough bytes got=" << Gc << " want=16";
+    errs() << "Cannot read enough bytes got=" << Gc << " want=16\n";
     return false;
   }
 

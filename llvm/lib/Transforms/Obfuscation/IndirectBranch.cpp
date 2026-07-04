@@ -63,8 +63,6 @@ PreservedAnalyses IndirectBranchPass::run(Function &F,
 
   ConstantInt *EncKey = ConstantInt::get(IntType, V, false);
 
-  Value *MySecret = ConstantInt::get(IntType, 0, true);
-
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
   GlobalVariable *DestBBs = getIndirectTargets(F, EncKey);
 
@@ -86,12 +84,8 @@ PreservedAnalyses IndirectBranchPass::run(Function &F,
     Value *GEP = IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, Idx});
     Value *EncDestAddr = IRB.CreateLoad(GEP->getType(), GEP, "EncDestAddr");
 
-    // Use IPO context to compute the encryption key
-    // X = FuncSecret - EncKey
-    Constant *X = ConstantExpr::getSub(Zero, EncKey);
+    Constant *DecKey = ConstantExpr::getSub(Zero, EncKey);
 
-    // -EncKey = X - FuncSecret
-    Value *DecKey = IRB.CreateAdd(X, MySecret);
     Value *DestAddr =
         IRB.CreateGEP(PointerType::getUnqual(Ctx), EncDestAddr, DecKey);
 
