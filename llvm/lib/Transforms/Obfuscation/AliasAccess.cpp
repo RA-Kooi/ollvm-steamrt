@@ -71,10 +71,10 @@ PreservedAnalyses AliasAccess::run(Function &F, FunctionAnalysisManager &AM) {
 
 static Function *buildGetterFunction(Module &M, StructType *ST, unsigned Index) {
   std::vector<Type *> Params;
-  Params.push_back(Type::getInt8Ty(M.getContext())->getPointerTo());
+  Params.push_back(PointerType::getUnqual(M.getContext()));
 
   FunctionType *FT = FunctionType::get(
-      Type::getInt8Ty(M.getContext())->getPointerTo(),
+      PointerType::getUnqual(M.getContext()),
       Params,
       false);
 
@@ -101,7 +101,7 @@ static void process(Function &F) {
   std::vector<std::unique_ptr<ReferenceNode>> Graph;
   std::vector<Type *> Slots;
 
-  Type *PtrType = PointerType::getUnqual(Type::getInt8Ty(F.getContext()));
+  Type *PtrType = PointerType::getUnqual(F.getContext());
   StructType *TransST = StructType::create(F.getContext());
 
   for (BasicBlock &BB : F) {

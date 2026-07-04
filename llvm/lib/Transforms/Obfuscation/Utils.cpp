@@ -210,7 +210,7 @@ void llvm::lowerConstantExpr(Function &F) {
           continue;
 
         Instruction *NewInst = CE->getAsInstruction();
-        NewInst->insertBefore(TI);
+        NewInst->insertBefore(TI->getIterator());
         PHI->setIncomingValue(I, NewInst);
         WorkList.insert(NewInst);
       }
@@ -224,7 +224,7 @@ void llvm::lowerConstantExpr(Function &F) {
         continue;
 
       Instruction *NewInst = CE->getAsInstruction();
-      NewInst->insertBefore(Instr);
+      NewInst->insertBefore(Instr->getIterator());
       Instr->replaceUsesOfWith(CE, NewInst);
       WorkList.insert(NewInst);
     }
