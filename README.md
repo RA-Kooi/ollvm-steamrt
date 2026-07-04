@@ -32,7 +32,6 @@ Prefixing the annotation with `no` disables that specific pass for that function
 
 ## Goron features
 - Indirect branching `-mllvm -ibr`
-- Indirect function calls `-mllvm -icall`
 - String obfuscation `-mllvm -sobf`  
   Does not work as a function annotation (for now?).
 - Indirect global variables `-mllvm -igv`  
@@ -46,6 +45,13 @@ Prefixing the annotation with `no` disables that specific pass for that function
   accesses with random instances of these getters to add a layer of indirection.
 - Linear MBA `-mllvm -lmba`  
   Replaces bitwise operators with linear MBA expressions.
+
+## Original features
+- Indirect function calls `-mllvm -icall`
+  - `-mllvm -icall-min-callees=20` controls the minimum size of the indirect callee tables.  
+  Originally adapted from Goron, but it has been basically fully rewritten making it an original feature.  
+  Replaces a function call with one of 2 invariant conditions and picks its target  
+  from one of 2 tables based on the invariant condition.
 
 # A note on performance
 
