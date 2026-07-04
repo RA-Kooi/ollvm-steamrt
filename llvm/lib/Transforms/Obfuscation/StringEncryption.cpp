@@ -319,10 +319,11 @@ static Function *buildDecryptFunction(Module *M, const CSPEntry *Entry) {
   ++ArgIt;
   Argument *Data = ArgIt; // input
 
+  Attribute NoCapture = Attribute::getWithCaptureInfo(Ctx, CaptureInfo::none());
   PlainString->setName("plain_string");
-  PlainString->addAttr(Attribute::NoCapture);
+  PlainString->addAttr(NoCapture);
   Data->setName("data");
-  Data->addAttr(Attribute::NoCapture);
+  Data->addAttr(NoCapture);
   Data->addAttr(Attribute::ReadOnly);
 
   BasicBlock *Enter = BasicBlock::Create(Ctx, "Enter", DecFunc);
@@ -416,8 +417,9 @@ static Function *buildInitFunction(Module *M, const CSUser *User) {
   auto *ArgIt = InitFunc->arg_begin();
   Argument *Thiz = ArgIt;
 
+  Attribute NoCapture = Attribute::getWithCaptureInfo(Ctx, CaptureInfo::none());
   Thiz->setName("this");
-  Thiz->addAttr(Attribute::NoCapture);
+  Thiz->addAttr(NoCapture);
 
   // convert constant initializer into a series of instructions
   BasicBlock *Enter = BasicBlock::Create(Ctx, "Enter", InitFunc);

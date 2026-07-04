@@ -130,7 +130,7 @@ public:
     LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
     unsigned N = SplitAllCriticalEdges(F, CriticalEdgeSplittingOptions(DT, LI));
-    bool Changed = runPass(F);
+    bool Changed = RegToMemPass::runPass(F);
     return N != 0 || Changed;
   }
 };
