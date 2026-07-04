@@ -45,7 +45,7 @@ static void shuffle(std::vector<int> &Vec);
 PreservedAnalyses SplitBasicBlockPass::run(Function &F,
                                            FunctionAnalysisManager &AM) {
   if (shouldObfuscate(SplitEnabled, &F, "split")) {
-    split(&F);
+    ::split(&F);
     ++Split;
     return PreservedAnalyses::none();
   }
