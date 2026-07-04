@@ -1621,12 +1621,12 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   FPM = FunctionPassManager();
   FPM.addPass(LinearMBA());
-  FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   MPM.addPass(StringEncryptionPass());
+  MPM.addPass(IndirectCallPass());
 
   FPM = FunctionPassManager();
   FPM.addPass(IndirectGlobalVariablePass());
@@ -2194,12 +2194,12 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
   FPM.addPass(LinearMBA());
-  FPM.addPass(IndirectCallPass());
   FPM.addPass(IndirectBranchPass());
   FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   MPM.addPass(StringEncryptionPass());
+  MPM.addPass(IndirectCallPass());
 
   FPM = FunctionPassManager();
   FPM.addPass(IndirectGlobalVariablePass());
