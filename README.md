@@ -39,7 +39,7 @@ Prefixing the annotation with `no` disables that specific pass for that function
 
 ## Polaris obfuscator features
 - Local alias access `-mllvm -laa`
-  - `-mllvm -laa_members=6` controls the upper mount of members inserted in generated structs.  
+  - `-mllvm -laa_members=6` controls the upper amount of members inserted in generated structs.  
   Generates structs with a random amount of members and a corresponding getter  
   function that reads the local variable from the struct. Replaces local variable  
   accesses with random instances of these getters to add a layer of indirection.

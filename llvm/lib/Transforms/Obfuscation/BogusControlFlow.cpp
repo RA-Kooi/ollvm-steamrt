@@ -15,7 +15,7 @@
     LLVM BogusControlFlow Pass
     The main modification is the branching condition is calculated on-the-fly
     Instead of hard-code the always true condition. Relicensed from NCSA license
-   to AGPL Copyright (C) 2017 Zhang(https://github.com/Naville/)
+    to AGPL Copyright (C) 2017 Zhang(https://github.com/Naville/)
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -35,31 +35,31 @@
 // It adds bogus flow to a given basic block this way:
 //
 // Before :
-// 	         		     entry
-//      			       |
-//  	    	  	 ______v______
-//   	    		|   Original  |
-//   	    		|_____________|
-//             		       |
-// 		        	       v
-//		        	     return
+//          entry
+//            |
+//      ______v______
+//     |   Original  |
+//     |_____________|
+//            |
+//            v
+//         return
 //
 // After :
-//           		     entry
-//             		       |
-//            		   ____v_____
-//      			  |condition*| (false)
-//           		  |__________|----+
-//           		 (true)|          |
-//             		       |          |
-//           		 ______v______    |
-// 		        +-->|   Original* |   |
-// 		        |   |_____________| (true)
-// 		        |   (false)|    !-----------> return
-// 		        |    ______v______    |
-// 		        |   |   Altered   |<--!
-// 		        |   |_____________|
-// 		        |__________|
+//          entry
+//            |
+//        ____v_____
+//       |condition*| (false)
+//       |__________|----+
+//      (true)|          |
+//            |          |
+//      ______v______    |
+// +-->|   Original* |   |
+// |   |_____________| (true)
+// |   (false)|    !-----------> return
+// |    ______v______    |
+// |   |   Altered   |<--!
+// |   |_____________|
+// |__________|
 //
 //  * The results of these terminator's branch's conditions are always true, but
 //  these predicates are
@@ -89,8 +89,8 @@
 //  - "gen" : general informations
 //  - "opt" : concerning the given options (parameter)
 //  - "cfg" : printing the various function's cfg before transformation
-//	      and after transformation if it has been modified, and all
-//	      the functions at end of the pass, after doFinalization.
+//            and after transformation if it has been modified, and all
+//            the functions at end of the pass, after doFinalization.
 //
 //  To use them all, simply use the -debug option.
 //  To use only one of them, follow the pass' command by -debug-only=name.

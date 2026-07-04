@@ -49,7 +49,7 @@ PreservedAnalyses SubstitutionPass::run(Function &F,
                                         FunctionAnalysisManager &AM) {
   // Check if the percentage is correct
   if (ObfTimes <= 0) {
-    errs() << "Substitution application number -sub_loop=x must be x > 0";
+    errs() << "Substitution application number -sub_loop=x must be x > 0\n";
     return PreservedAnalyses::all();
   }
 

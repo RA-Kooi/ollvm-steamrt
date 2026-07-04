@@ -1,5 +1,5 @@
 /*
- *  LLVM StringEncryption Pass
+ *  LLVM SplitBasicBlock Pass
     Copyright (C) 2017 Zhang(https://github.com/Naville/)
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
