@@ -1613,16 +1613,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
     addRequiredLTOPreLinkPasses(MPM);
 
   FunctionPassManager FPM;
-  FPM.addPass(AliasAccess());
-  FPM.addPass(BogusControlFlowPass());
-  FPM.addPass(SplitBasicBlockPass());
-  FPM.addPass(FlatteningPass());
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-
-  FPM = FunctionPassManager();
-  FPM.addPass(LinearMBA());
   FPM.addPass(IndirectBranchPass());
-  FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   MPM.addPass(StringEncryptionPass());
@@ -1630,6 +1621,14 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   FPM = FunctionPassManager();
   FPM.addPass(IndirectGlobalVariablePass());
+  FPM.addPass(LinearMBA());
+  FPM.addPass(SubstitutionPass());
+  FPM.addPass(AliasAccess());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  FPM.addPass(BogusControlFlowPass());
+  FPM.addPass(SplitBasicBlockPass());
+  FPM.addPass(FlatteningPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   return MPM;
@@ -2189,13 +2188,7 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   invokeOptimizerLastEPCallbacks(MPM, Level);
 
   FunctionPassManager FPM;
-  FPM.addPass(AliasAccess());
-  FPM.addPass(BogusControlFlowPass());
-  FPM.addPass(SplitBasicBlockPass());
-  FPM.addPass(FlatteningPass());
-  FPM.addPass(LinearMBA());
   FPM.addPass(IndirectBranchPass());
-  FPM.addPass(SubstitutionPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   MPM.addPass(StringEncryptionPass());
@@ -2203,6 +2196,14 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   FPM = FunctionPassManager();
   FPM.addPass(IndirectGlobalVariablePass());
+  FPM.addPass(LinearMBA());
+  FPM.addPass(SubstitutionPass());
+  FPM.addPass(AliasAccess());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
+  FPM.addPass(BogusControlFlowPass());
+  FPM.addPass(SplitBasicBlockPass());
+  FPM.addPass(FlatteningPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   if (LTOPreLink)
