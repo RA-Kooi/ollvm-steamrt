@@ -74,8 +74,7 @@ static void createIcallTable(
 static Value *emitPolynomials(IRBuilder<> &IRB, Value *Input, bool AlwaysTrue);
 static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTrue);
 
-static std::vector<Value *>
-findUsableValues(CallBase *CB, BasicBlock *BB, DominatorTree &DT);
+static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB);
 
 PreservedAnalyses IndirectCallPass::run(Module &M,
                                         ModuleAnalysisManager &AM) {
@@ -176,7 +175,6 @@ static void runOnFunction(
     bool Bits64) {
   LLVMContext &Ctx = Fn.getContext();
   Module &M = *Fn.getParent();
-  DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(Fn);
 
   PointerType *OpaquePtrTy = PointerType::getUnqual(M.getContext());
   auto *ATy = dyn_cast<ArrayType>(Keys->getValueType());
@@ -215,7 +213,7 @@ static void runOnFunction(
     bool RealIsTrue = Cryptoutils->getUint8T() & 1;
     bool DoSplit = Cryptoutils->getUint8T() & 1;
 
-    std::vector<Value *> Inputs = findUsableValues(CB, ThisBlock, DT);
+    std::vector<Value *> Inputs = findUsableValues(CB, ThisBlock);
     bool DoMatrix = Inputs.size() ? Cryptoutils->getUint8T() & 1 : false;
 
     Idx = Cryptoutils->getRange(Inputs.size());
@@ -783,7 +781,7 @@ static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTru
   return IRB.CreateNot(Cond);
 }
 
-static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB, DominatorTree &DT) {
+static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB) {
   auto IsValidCandidateInstruction = [](Instruction &I) {
     if (isa<GetElementPtrInst>(&I))
       return false;
@@ -811,8 +809,6 @@ static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB, Domin
   };
 
   auto SearchBlock = [
-    CB,
-    &DT,
     IsValidCandidateInstruction,
     IsValidCandidateOperand
   ](BasicBlock *Block) -> std::vector<Value*> {
@@ -829,13 +825,14 @@ static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB, Domin
       if (!IsValidCandidateInstruction(I))
         continue;
 
-      // CHECK(Rafaël): Do we care if the candidate is actually initialized?
-      // Maybe using an uninitialized variable is better because the value is
-      // effectively random (whatever was on the stack at that point), might
-      // even throw off static analysis.
+      // NOTE(Rafaël): Normally you would use the DominatorTree here to check
+      // if the variable has been initialized. We don't actually want that here,
+      // since it makes static analysis more annoying. This does make llc
+      // complain about values not being dominated. But that's a sacrifice I'm
+      // willing to make here.
       for (auto OpIt = I.op_begin(), OpEnd = I.op_end(); OpIt != OpEnd; ++OpIt) {
         Value *V = OpIt->get();
-        if (IsValidCandidateOperand(V) && DT.dominates(V, CB))
+        if (IsValidCandidateOperand(V))
           Values.push_back(V);
       }
     }
