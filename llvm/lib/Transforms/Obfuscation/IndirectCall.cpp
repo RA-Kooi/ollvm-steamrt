@@ -214,20 +214,32 @@ static void runOnFunction(
     std::vector<Value *> Inputs = findUsableValues(CB, ThisBlock, DT);
     bool DoMatrix = Inputs.size() ? Cryptoutils->getUint8T() & 1 : false;
 
-    Value *Cond;
+    Idx = Cryptoutils->getRange(Inputs.size());
 
     Value *X = Inputs.size()
-      ? Inputs[Inputs.size() - 1]
+      ? Inputs[Idx]
       // NOTE(Rafaël): Make sure it's a volatile load so ghidra's analysis engine
       // and hopefully other engines will not immediately fold it.
       : IRB.CreateLoad(IntType, PolyDummy, true);
 
+    if (auto *GV = dyn_cast_or_null<GlobalVariable>(X)) {
+      X = IRB.CreatePtrToInt(GV, IntType);
+    }
+
+    Value *Cond;
     if (!DoMatrix)
       Cond = emitPolynomials(IRB, X, RealIsTrue);
     else {
+      size_t Idx2 = Idx;
+      while(Idx2 == Idx && Inputs.size() >= 2)
+        Idx2 = Cryptoutils->getRange(Inputs.size());
+
       Value *Y = Inputs.size() >= 2
-        ? Inputs[Inputs.size() - 2]
+        ? Inputs[Idx2]
         : IRB.CreateLoad(IntType, PolyDummy, true);
+
+      if (auto *GV = dyn_cast_or_null<GlobalVariable>(Y))
+        Y = IRB.CreatePtrToInt(GV, IntType);
 
       Cond = emitInvMatrix(IRB, X, Y, RealIsTrue);
     }
@@ -829,6 +841,15 @@ static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB, Domin
     }
 
     BB = BB->getSinglePredecessor();
+  }
+
+  Module &M = *CB->getParent()->getParent()->getParent();
+
+  for(GlobalVariable &GV : M.globals()) {
+    if(GV.getName().starts_with("llvm."))
+      continue;
+
+    Values.push_back(&GV);
   }
 
   return Values;
