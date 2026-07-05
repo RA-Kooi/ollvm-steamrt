@@ -807,6 +807,9 @@ static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB, Domin
     if (!SearchedBlocks.count(BB)) {
       NewValues = SearchBlock(BB);
       SearchedBlocks.insert(BB);
+    } else {
+      BB = nullptr;
+      continue;
     }
 
     Values.reserve(Values.size() + NewValues.size());
@@ -816,12 +819,11 @@ static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB, Domin
     unsigned PredCount = std::distance(Preds.begin(), Preds.end());
 
     if (PredCount > 1) {
-      auto End = std::prev(Preds.end());
-
-      for (auto It = Preds.begin(); It != End; ++It)
+      for (auto It = Preds.begin(), End = Preds.end(); It != End; ++It)
         Predecessors.push_front(*It);
 
-      BB = *End;
+      BB = Predecessors.front();
+      Predecessors.pop_front();
 
       continue;
     }
