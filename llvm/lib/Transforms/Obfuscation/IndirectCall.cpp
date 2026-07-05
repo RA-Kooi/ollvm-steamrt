@@ -49,6 +49,7 @@ static void runOnFunction(
     GlobalVariable *PolyDummy,
     GlobalVariable *Callees,
     GlobalVariable *Keys,
+    GlobalVariable *SubKeys,
     GlobalVariable *Dummies,
     bool Bits64);
 
@@ -110,6 +111,7 @@ PreservedAnalyses IndirectCallPass::run(Module &M,
 
   auto *Callees = M.getNamedGlobal("ollvm_icall_callees");
   auto *Keys = M.getNamedGlobal("ollvm_icall_keys");
+  auto *SubKeys = M.getNamedGlobal("ollvm_icall_subkeys");
   auto *DummyCallees = M.getNamedGlobal("ollvm_icall_dummies");
   auto *EncryptedCallees = M.getNamedGlobal("ollvm_icall_data");
   auto *EncryptedDummies = M.getNamedGlobal("ollvm_icall_data_dummy");
@@ -151,6 +153,7 @@ PreservedAnalyses IndirectCallPass::run(Module &M,
           PolyDummy,
           EncryptedCallees,
           Keys,
+          SubKeys,
           EncryptedDummies,
           PointerSize == 8);
     }
@@ -168,6 +171,7 @@ static void runOnFunction(
     GlobalVariable *PolyDummy,
     GlobalVariable *Callees,
     GlobalVariable *Keys,
+    GlobalVariable *SubKeys,
     GlobalVariable *Dummies,
     bool Bits64) {
   LLVMContext &Ctx = Fn.getContext();
@@ -244,7 +248,7 @@ static void runOnFunction(
       Cond = emitInvMatrix(IRB, X, Y, RealIsTrue);
     }
 
-    auto EmitDestPtr = [&IRB, Zero, TargetIdx, IntType, ATy, Keys](
+    auto EmitDestPtr = [&IRB, Zero, TargetIdx, IntType, ATy, Keys, SubKeys](
         GlobalVariable *Table) {
       Value *EncDestAddr = IRB.CreateGEP(ATy, Table, {Zero, TargetIdx});
       EncDestAddr = IRB.CreateLoad(IntType, EncDestAddr);
@@ -252,9 +256,15 @@ static void runOnFunction(
       Value *Key = IRB.CreateGEP(ATy, Keys, {Zero, TargetIdx});
       Key = IRB.CreateLoad(IntType, Key);
 
-      Value *DestAddr = IRB.CreateXor(Key, EncDestAddr);
+      Value *SubKey = IRB.CreateGEP(ATy, SubKeys, {Zero, TargetIdx});
+      SubKey = IRB.CreateLoad(IntType, SubKey);
+      SubKey = IRB.CreateNeg(SubKey);
 
-      return IRB.CreateIntToPtr(DestAddr, IRB.getPtrTy());
+      Value *DestAddr = IRB.CreateXor(Key, EncDestAddr);
+      DestAddr = IRB.CreateIntToPtr(DestAddr, IRB.getPtrTy());
+      DestAddr = IRB.CreateGEP(IRB.getPtrTy(), DestAddr, SubKey);
+
+      return DestAddr;
     };
 
     if (DoSplit) {
@@ -333,22 +343,32 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
 
   Callees.insert(Dummies.cbegin(), Dummies.cend());
 
-  std::vector<Constant*> CalleeFuncs, CalleeKeys;
+  //                     Normal,    Encrypted, SubKey
+  std::vector<std::tuple<Constant*, Constant*, Constant*>> CalleeFuncs;
   CalleeFuncs.reserve(Callees.size());
+
+  std::vector<Constant*> CalleeKeys;
   CalleeKeys.reserve(Callees.size());
 
   for (auto &Callee : Callees) {
-    Constant *CE = ConstantExpr::getBitCast(Callee, Opaque);
-
-    CalleeFuncs.push_back(CE);
-
     uint64_t Key = Bits64
       ? Cryptoutils->getUint64T()
       : Cryptoutils->getUint32T();
 
-    ConstantInt *V = ConstantInt::get(IntType, Key);
+    ConstantInt *SubKey = ConstantInt::get(IntType, Key);
 
-    CalleeKeys.push_back(V);
+    Constant *CE = ConstantExpr::getBitCast(Callee, Opaque);
+    Constant *CEnc = ConstantExpr::getGetElementPtr(IntType, CE, SubKey);
+
+    CalleeFuncs.push_back({CE, CEnc, SubKey});
+
+    Key = Bits64
+      ? Cryptoutils->getUint64T()
+      : Cryptoutils->getUint32T();
+
+    Constant *K = ConstantInt::get(IntType, Key);
+
+    CalleeKeys.push_back(K);
   }
 
   std::shuffle(CalleeFuncs.begin(), CalleeFuncs.end(), Engine);
@@ -357,10 +377,16 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
   Callee2Idx.reserve(CalleeFuncs.size());
 
   for (size_t I = 0; I < CalleeFuncs.size(); ++I)
-    Callee2Idx[CalleeFuncs[I]] = I;
+    Callee2Idx[std::get<0>(CalleeFuncs[I])] = I;
 
   ArrayType *ATy = ArrayType::get(Opaque, CalleeFuncs.size());
-  auto *CA = ConstantArray::get(ATy, CalleeFuncs);
+
+  std::vector<Constant*> Tmp;
+  Tmp.reserve(CalleeFuncs.size());
+  for (auto &P : CalleeFuncs)
+    Tmp.push_back(std::get<1>(P));
+
+  auto *CA = ConstantArray::get(ATy, Tmp);
 
   auto *GV = new GlobalVariable(
       M,
@@ -369,6 +395,21 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
       GlobalValue::LinkageTypes::PrivateLinkage,
       CA,
       "ollvm_icall_callees");
+
+  appendToCompilerUsed(M, {GV});
+
+  std::shuffle(Tmp.begin(), Tmp.end(), Engine);
+
+  ATy = ArrayType::get(Opaque, CalleeFuncs.size());
+  CA = ConstantArray::get(ATy, Tmp);
+
+  GV = new GlobalVariable(
+      M,
+      ATy,
+      true,
+      GlobalValue::LinkageTypes::PrivateLinkage,
+      CA,
+      "ollvm_icall_dummies");
 
   appendToCompilerUsed(M, {GV});
 
@@ -385,10 +426,11 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
 
   appendToCompilerUsed(M, {GV});
 
-  std::shuffle(CalleeFuncs.begin(), CalleeFuncs.end(), Engine);
+  Tmp.clear();
+  for (auto &P : CalleeFuncs)
+    Tmp.push_back(std::get<2>(P));
 
-  ATy = ArrayType::get(Opaque, CalleeFuncs.size());
-  CA = ConstantArray::get(ATy, CalleeFuncs);
+  CA = ConstantArray::get(ATy, Tmp);
 
   GV = new GlobalVariable(
       M,
@@ -396,7 +438,7 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
       true,
       GlobalValue::LinkageTypes::PrivateLinkage,
       CA,
-      "ollvm_icall_dummies");
+      "ollvm_icall_subkeys");
 
   appendToCompilerUsed(M, {GV});
 
