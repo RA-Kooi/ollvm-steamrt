@@ -57,7 +57,7 @@ public:
   }
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
-  bool substitute(Function *F);
+  void substitute(Function *F);
 
   static void addNeg(BinaryOperator *Bo);
   static void addDoubleNeg(BinaryOperator *Bo);
