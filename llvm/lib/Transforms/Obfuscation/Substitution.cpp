@@ -15,8 +15,10 @@
 #include "llvm/Transforms/Obfuscation/Substitution.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/NoFolder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
@@ -62,7 +64,7 @@ PreservedAnalyses SubstitutionPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-bool SubstitutionPass::substitute(Function *F) {
+void SubstitutionPass::substitute(Function *F) {
   // Loop for the number of time we run the pass on the function
   int Times = ObfTimes;
   do {
@@ -73,14 +75,14 @@ bool SubstitutionPass::substitute(Function *F) {
           case BinaryOperator::Add:
             // case BinaryOperator::FAdd:
             // Substitute with random add operation
-            (*FuncAdd[llvm::Cryptoutils->getRange(NumberAddSubst)])(
+            (*FuncAdd[Cryptoutils->getRange(NumberAddSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Add;
             break;
           case BinaryOperator::Sub:
             // case BinaryOperator::FSub:
             // Substitute with random sub operation
-            (*FuncSub[llvm::Cryptoutils->getRange(NumberSubSubst)])(
+            (*FuncSub[Cryptoutils->getRange(NumberSubSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Sub;
             break;
@@ -108,17 +110,17 @@ bool SubstitutionPass::substitute(Function *F) {
             //++Shi;
             break;
           case Instruction::And:
-            (*FuncAnd[llvm::Cryptoutils->getRange(NumberAndSubst)])(
+            (*FuncAnd[Cryptoutils->getRange(NumberAndSubst)])(
                 cast<BinaryOperator>(Inst));
             ++And;
             break;
           case Instruction::Or:
-            (*FuncOr[llvm::Cryptoutils->getRange(NumberOrSubst)])(
+            (*FuncOr[Cryptoutils->getRange(NumberOrSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Or;
             break;
           case Instruction::Xor:
-            (*FuncXor[llvm::Cryptoutils->getRange(NumberXorSubst)])(
+            (*FuncXor[Cryptoutils->getRange(NumberXorSubst)])(
                 cast<BinaryOperator>(Inst));
             ++Xor;
             break;
@@ -129,18 +131,16 @@ bool SubstitutionPass::substitute(Function *F) {
       } // End for basickblock
     } // End for Function
   } while (--Times > 0); // for times
-  return false;
 }
 
 // Implementation of a = b - (-c)
 void SubstitutionPass::addNeg(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   // Create sub
   if (Bo->getOpcode() == Instruction::Add) {
-    Op = BinaryOperator::CreateNeg(Bo->getOperand(1), "", Bo->getIterator());
-    Op =
-        BinaryOperator::Create(Instruction::Sub, Bo->getOperand(0), Op, "", Bo->getIterator());
+    Value *Op = IRB.CreateNeg(Bo->getOperand(1));
+    Op = IRB.CreateSub(Bo->getOperand(0), Op);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
@@ -156,39 +156,38 @@ void SubstitutionPass::addNeg(BinaryOperator *Bo) {
 
 // Implementation of a = -(-b + (-c))
 void SubstitutionPass::addDoubleNeg(BinaryOperator *Bo) {
-  BinaryOperator *Op, *Op2 = NULL;
-  UnaryOperator *Op3, *Op4;
+  IRBuilder<NoFolder> IRB(Bo);
+
   if (Bo->getOpcode() == Instruction::Add) {
-    Op = BinaryOperator::CreateNeg(Bo->getOperand(0), "", Bo->getIterator());
-    Op2 = BinaryOperator::CreateNeg(Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::Add, Op, Op2, "", Bo->getIterator());
-    Op = BinaryOperator::CreateNeg(Op, "", Bo->getIterator());
+    Value *Op = IRB.CreateNeg(Bo->getOperand(0));
+    Value *Op2 = IRB.CreateNeg(Bo->getOperand(1));
+    Op = IRB.CreateAdd(Op, Op2);
+    Op = IRB.CreateNeg(Op);
+
     Bo->replaceAllUsesWith(Op);
+
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
   } else {
-    Op3 = UnaryOperator::CreateFNeg(Bo->getOperand(0), "", Bo->getIterator());
-    Op4 = UnaryOperator::CreateFNeg(Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::FAdd, Op3, Op4, "", Bo->getIterator());
-    Op3 = UnaryOperator::CreateFNeg(Op, "", Bo->getIterator());
-    Bo->replaceAllUsesWith(Op3);
+    Value *Op = IRB.CreateFNeg(Bo->getOperand(0));
+    Value *Op2 = IRB.CreateFNeg(Bo->getOperand(1));
+    Op = IRB.CreateFAdd(Op, Op2);
+    Op = IRB.CreateFNeg(Op);
+
+    Bo->replaceAllUsesWith(Op);
   }
 }
 
 // Implementation of  r = rand (); a = b + r; a = a + c; a = a - r
 void SubstitutionPass::addRand(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   if (Bo->getOpcode() == Instruction::Add) {
-    Type *Ty = Bo->getType();
-    ConstantInt *Co =
-        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
-    Op =
-        BinaryOperator::Create(Instruction::Add, Bo->getOperand(0), Co, "", Bo->getIterator());
-    Op =
-        BinaryOperator::Create(Instruction::Add, Op, Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::Sub, Op, Co, "", Bo->getIterator());
+    Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
+    Value *Op = IRB.CreateAdd(Bo->getOperand(0), Co);
+    Op = IRB.CreateAdd(Op, Bo->getOperand(1));
+    Op = IRB.CreateSub(Op, Co);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
@@ -208,17 +207,13 @@ void SubstitutionPass::addRand(BinaryOperator *Bo) {
 
 // Implementation of r = rand (); a = b - r; a = a + b; a = a + r
 void SubstitutionPass::addRand2(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   if (Bo->getOpcode() == Instruction::Add) {
-    Type *Ty = Bo->getType();
-    ConstantInt *Co =
-        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
-    Op =
-        BinaryOperator::Create(Instruction::Sub, Bo->getOperand(0), Co, "", Bo->getIterator());
-    Op =
-        BinaryOperator::Create(Instruction::Add, Op, Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::Add, Op, Co, "", Bo->getIterator());
+    Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
+    Value *Op = IRB.CreateSub(Bo->getOperand(0), Co);
+    Op = IRB.CreateAdd(Op, Bo->getOperand(1));
+    Op = IRB.CreateAdd(Op, Co);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
@@ -238,35 +233,33 @@ void SubstitutionPass::addRand2(BinaryOperator *Bo) {
 
 // Implementation of a = b + (-c)
 void SubstitutionPass::subNeg(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
+  Value *Op;
+
   if (Bo->getOpcode() == Instruction::Sub) {
-    Op = BinaryOperator::CreateNeg(Bo->getOperand(1), "", Bo->getIterator());
-    Op =
-        BinaryOperator::Create(Instruction::Add, Bo->getOperand(0), Op, "", Bo->getIterator());
+    Op = IRB.CreateNeg(Bo->getOperand(1));
+    Op = IRB.CreateAdd(Bo->getOperand(0), Op);
+
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
     // op->setHasNoUnsignedWrap(bo->hasNoUnsignedWrap());
   } else {
-    auto *Op1 = UnaryOperator::CreateFNeg(Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::FAdd, Bo->getOperand(0), Op1, "",
-                                Bo->getIterator());
+    Op = IRB.CreateFNeg(Bo->getOperand(1));
+    Op = IRB.CreateFAdd(Bo->getOperand(0), Op);
   }
+
   Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of  r = rand (); a = b + r; a = a - c; a = a - r
 void SubstitutionPass::subRand(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   if (Bo->getOpcode() == Instruction::Sub) {
-    Type *Ty = Bo->getType();
-    ConstantInt *Co =
-        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
-    Op =
-        BinaryOperator::Create(Instruction::Add, Bo->getOperand(0), Co, "", Bo->getIterator());
-    Op =
-        BinaryOperator::Create(Instruction::Sub, Op, Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::Sub, Op, Co, "", Bo->getIterator());
+    Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
+    Value *Op = IRB.CreateAdd(Bo->getOperand(0), Co);
+    Op = IRB.CreateSub(Op, Bo->getOperand(1));
+    Op = IRB.CreateSub(Op, Co);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
@@ -286,17 +279,13 @@ void SubstitutionPass::subRand(BinaryOperator *Bo) {
 
 // Implementation of  r = rand (); a = b - r; a = a - c; a = a + r
 void SubstitutionPass::subRand2(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   if (Bo->getOpcode() == Instruction::Sub) {
-    Type *Ty = Bo->getType();
-    ConstantInt *Co =
-        (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
-    Op =
-        BinaryOperator::Create(Instruction::Sub, Bo->getOperand(0), Co, "", Bo->getIterator());
-    Op =
-        BinaryOperator::Create(Instruction::Sub, Op, Bo->getOperand(1), "", Bo->getIterator());
-    Op = BinaryOperator::Create(Instruction::Add, Op, Co, "", Bo->getIterator());
+    Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
+    Value *Op = IRB.CreateSub(Bo->getOperand(0), Co);
+    Op = IRB.CreateSub(Op, Bo->getOperand(1));
+    Op = IRB.CreateAdd(Op, Co);
 
     // Check signed wrap
     // op->setHasNoSignedWrap(bo->hasNoSignedWrap());
@@ -316,51 +305,47 @@ void SubstitutionPass::subRand2(BinaryOperator *Bo) {
 
 // Implementation of a = b & c => a = (b^~c)& b
 void SubstitutionPass::andSubstitution(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   // Create NOT on second operand => ~c
-  Op = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo->getIterator());
+  Value *Op = IRB.CreateNot(Bo->getOperand(1));
 
   // Create XOR => (b^~c)
-  BinaryOperator *Op1 =
-      BinaryOperator::Create(Instruction::Xor, Bo->getOperand(0), Op, "", Bo->getIterator());
+  Op = IRB.CreateXor(Bo->getOperand(0), Op);
 
   // Create AND => (b^~c) & b
-  Op = BinaryOperator::Create(Instruction::And, Op1, Bo->getOperand(0), "", Bo->getIterator());
+  Op = IRB.CreateAnd(Op, Bo->getOperand(0));
+
   Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = a & b <=> ~(~a | ~b) & (r | ~r)
 void SubstitutionPass::andSubstitutionRand(BinaryOperator *Bo) {
-  // Copy of the BinaryOperator type to create the random number with the
-  // same type of the operands
-  Type *Ty = Bo->getType();
+  IRBuilder<NoFolder> IRB(Bo);
 
   // r (Random number)
-  ConstantInt *Co =
-      (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+  Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
 
   // ~a
-  BinaryOperator *Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo->getIterator());
+  Value *Op = IRB.CreateNot(Bo->getOperand(0));
 
   // ~b
-  BinaryOperator *Op1 = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo->getIterator());
+  Value *Op1 = IRB.CreateNot(Bo->getOperand(1));
 
   // ~r
-  BinaryOperator *Opr = BinaryOperator::CreateNot(Co, "", Bo->getIterator());
+  Value *Opr = IRB.CreateNot(Co);
 
   // (~a | ~b)
-  BinaryOperator *Opa =
-      BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo->getIterator());
+  Value *Opa = IRB.CreateOr(Op, Op1);
 
   // (r | ~r)
-  Opr = BinaryOperator::Create(Instruction::Or, Co, Opr, "", Bo->getIterator());
+  Opr = IRB.CreateOr(Co, Opr);
 
   // ~(~a | ~b)
-  Op = BinaryOperator::CreateNot(Opa, "", Bo->getIterator());
+  Op = IRB.CreateNot(Opa);
 
   // ~(~a | ~b) & (r | ~r)
-  Op = BinaryOperator::Create(Instruction::And, Op, Opr, "", Bo->getIterator());
+  Op = IRB.CreateAnd(Op, Opr);
 
   // We replace all the old AND operators with the new one transformed
   Bo->replaceAllUsesWith(Op);
@@ -369,101 +354,93 @@ void SubstitutionPass::andSubstitutionRand(BinaryOperator *Bo) {
 // Implementation of a = a | b =>
 // a = (((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))) | (~(~a | ~b) & (r | ~r))
 void SubstitutionPass::orSubstitutionRand(BinaryOperator *Bo) {
+  IRBuilder<NoFolder> IRB(Bo);
 
-  Type *Ty = Bo->getType();
-  ConstantInt *Co =
-      (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+  Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
 
   // ~a
-  BinaryOperator *Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo->getIterator());
+  Value *Op = IRB.CreateNot(Bo->getOperand(0));
 
   // ~b
-  BinaryOperator *Op1 = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo->getIterator());
+  Value *Op1 = IRB.CreateNot(Bo->getOperand(1));
 
   // ~r
-  BinaryOperator *Op2 = BinaryOperator::CreateNot(Co, "", Bo->getIterator());
+  Value *Op2 = IRB.CreateNot(Co);
 
   // ~a & r
-  BinaryOperator *Op3 =
-      BinaryOperator::Create(Instruction::And, Op, Co, "", Bo->getIterator());
+  Value *Op3 = IRB.CreateAnd(Op, Co);
 
   // a & ~r
-  BinaryOperator *Op4 =
-      BinaryOperator::Create(Instruction::And, Bo->getOperand(0), Op2, "", Bo->getIterator());
+  Value *Op4 = IRB.CreateAnd(Bo->getOperand(0), Op2);
 
   // ~b & r
-  BinaryOperator *Op5 =
-      BinaryOperator::Create(Instruction::And, Op1, Co, "", Bo->getIterator());
+  Value *Op5 = IRB.CreateAnd(Op1, Co);
 
   // b & ~r
-  BinaryOperator *Op6 =
-      BinaryOperator::Create(Instruction::And, Bo->getOperand(1), Op2, "", Bo->getIterator());
+  Value *Op6 = IRB.CreateAnd(Bo->getOperand(1), Op2);
 
   // (~a & r) | (a & ~r)
-  Op3 = BinaryOperator::Create(Instruction::Or, Op3, Op4, "", Bo->getIterator());
+  Op3 = IRB.CreateOr(Op3, Op4);
 
   // (~b & r) | (b & ~r)
-  Op4 = BinaryOperator::Create(Instruction::Or, Op5, Op6, "", Bo->getIterator());
+  Op4 = IRB.CreateOr(Op5, Op6);
 
   // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
-  Op5 = BinaryOperator::Create(Instruction::Xor, Op3, Op4, "", Bo->getIterator());
+  Op5 = IRB.CreateXor(Op3, Op4);
 
   // ~a | ~b
-  Op3 = BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo->getIterator());
+  Op3 = IRB.CreateOr(Op, Op1);
 
   // ~(~a | ~b)
-  Op3 = BinaryOperator::CreateNot(Op3, "", Bo->getIterator());
+  Op3 = IRB.CreateNot(Op3);
 
   // r | ~r
-  Op4 = BinaryOperator::Create(Instruction::Or, Co, Op2, "", Bo->getIterator());
+  Op4 = IRB.CreateOr(Co, Op2);
 
   // ~(~a | ~b) & (r | ~r)
-  Op4 = BinaryOperator::Create(Instruction::And, Op3, Op4, "", Bo->getIterator());
+  Op4 = IRB.CreateAnd(Op3, Op4);
 
   // (((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))) | (~(~a | ~b) & (r | ~r))
-  Op = BinaryOperator::Create(Instruction::Or, Op5, Op4, "", Bo->getIterator());
+  Op = IRB.CreateOr(Op5, Op4);
+
   Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = b | c => a = (b & c) | (b ^ c)
 void SubstitutionPass::orSubstitution(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
   // Creating first operand (b & c)
-  Op = BinaryOperator::Create(Instruction::And, Bo->getOperand(0),
-                              Bo->getOperand(1), "", Bo->getIterator());
+  Value *Op = IRB.CreateAnd(Bo->getOperand(0), Bo->getOperand(1));
 
   // Creating second operand (b ^ c)
-  BinaryOperator *Op1 = BinaryOperator::Create(
-      Instruction::Xor, Bo->getOperand(0), Bo->getOperand(1), "", Bo->getIterator());
+  Value *Op1 = IRB.CreateXor(Bo->getOperand(0), Bo->getOperand(1));
 
   // final op
-  Op = BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo->getIterator());
+  Op = IRB.CreateOr(Op, Op1);
+
   Bo->replaceAllUsesWith(Op);
 }
 
 // Implementation of a = a ^ b => a = (~a & b) | (a & ~b)
 void SubstitutionPass::xorSubstitution(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
-  // Create NOT on first operand
-  Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo->getIterator()); // ~a
+  // ~a
+  Value *Op = IRB.CreateNot(Bo->getOperand(0));
 
-  // Create AND
-  Op = BinaryOperator::Create(Instruction::And, Bo->getOperand(1), Op, "",
-                              Bo->getIterator()); // ~a & b
+  // ~a & b
+  Op = IRB.CreateAnd(Bo->getOperand(1), Op);
 
-  // Create NOT on second operand
-  BinaryOperator *Op1 =
-      BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo->getIterator()); // ~b
+  // ~b
+  Value *Op1 = IRB.CreateNot(Bo->getOperand(1));
 
-  // Create AND
-  Op1 = BinaryOperator::Create(Instruction::And, Bo->getOperand(0), Op1, "",
-                               Bo->getIterator()); // a & ~b
+  // a & ~b
+  Op1 = IRB.CreateAnd(Bo->getOperand(0), Op1);
 
-  // Create OR
-  Op = BinaryOperator::Create(Instruction::Or, Op, Op1, "",
-                              Bo->getIterator()); // (~a & b) | (a & ~b)
+  // (~a & b) | (a & ~b)
+  Op = IRB.CreateOr(Op, Op1);
+
   Bo->replaceAllUsesWith(Op);
 }
 
@@ -471,42 +448,39 @@ void SubstitutionPass::xorSubstitution(BinaryOperator *Bo) {
 // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
 // note : r is a random number
 void SubstitutionPass::xorSubstitutionRand(BinaryOperator *Bo) {
-  BinaryOperator *Op = NULL;
+  IRBuilder<NoFolder> IRB(Bo);
 
-  Type *Ty = Bo->getType();
-  ConstantInt *Co =
-      (ConstantInt *)ConstantInt::get(Ty, llvm::Cryptoutils->getUint64T());
+  Constant *Co = ConstantInt::get(Bo->getType(), Cryptoutils->getUint64T());
 
   // ~a
-  Op = BinaryOperator::CreateNot(Bo->getOperand(0), "", Bo->getIterator());
+  Value *Op = IRB.CreateNot(Bo->getOperand(0));
 
   // ~a & r
-  Op = BinaryOperator::Create(Instruction::And, Co, Op, "", Bo->getIterator());
+  Op = IRB.CreateAnd(Co, Op);
 
   // ~r
-  BinaryOperator *Opr = BinaryOperator::CreateNot(Co, "", Bo->getIterator());
+  Value *Opr = IRB.CreateNot(Co);
 
   // a & ~r
-  BinaryOperator *Op1 =
-      BinaryOperator::Create(Instruction::And, Bo->getOperand(0), Opr, "", Bo->getIterator());
+  Value *Op1 = IRB.CreateAnd(Bo->getOperand(0), Opr);
 
   // ~b
-  BinaryOperator *Op2 = BinaryOperator::CreateNot(Bo->getOperand(1), "", Bo->getIterator());
+  Value *Op2 = IRB.CreateNot(Bo->getOperand(1));
 
   // ~b & r
-  Op2 = BinaryOperator::Create(Instruction::And, Op2, Co, "", Bo->getIterator());
+  Op2 = IRB.CreateAnd(Op2, Co);
 
   // b & ~r
-  BinaryOperator *Op3 =
-      BinaryOperator::Create(Instruction::And, Bo->getOperand(1), Opr, "", Bo->getIterator());
+  Value *Op3 = IRB.CreateAnd(Bo->getOperand(1), Opr);
 
   // (~a & r) | (a & ~r)
-  Op = BinaryOperator::Create(Instruction::Or, Op, Op1, "", Bo->getIterator());
+  Op = IRB.CreateOr(Op, Op1);
 
   // (~b & r) | (b & ~r)
-  Op1 = BinaryOperator::Create(Instruction::Or, Op2, Op3, "", Bo->getIterator());
+  Op1 = IRB.CreateOr(Op2, Op3);
 
   // ((~a & r) | (a & ~r)) ^ ((~b & r) | (b & ~r))
-  Op = BinaryOperator::Create(Instruction::Xor, Op, Op1, "", Bo->getIterator());
+  Op = IRB.CreateXor(Op, Op1);
+
   Bo->replaceAllUsesWith(Op);
 }
