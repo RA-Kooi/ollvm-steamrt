@@ -2,14 +2,14 @@
 // https://github.com/obfuscator-llvm/obfuscator
 
 #include "llvm/Transforms/Obfuscation/Utils.h"
+
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/NoFolder.h"
 
 using namespace llvm;
-
-LLVMContext *CONTEXT = nullptr;
 
 std::string llvm::readAnnotate(Function *F) {
   std::string Annotation = "";

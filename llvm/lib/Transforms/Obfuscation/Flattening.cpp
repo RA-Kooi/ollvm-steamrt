@@ -3,7 +3,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Scalar/Reg2Mem.h"
@@ -22,8 +22,6 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM);
 PreservedAnalyses FlatteningPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
   if (shouldObfuscate(FlaEnabled, &F, "fla")) {
-    INIT_CONTEXT(F);
-
     if (flatten(&F, AM)) {
       ++Flattened;
     }
