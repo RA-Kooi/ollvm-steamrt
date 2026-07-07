@@ -9,9 +9,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/NoFolder.h"
 
-using namespace llvm;
-
-std::string llvm::readAnnotate(Function *F) {
+namespace llvm {
+std::string readAnnotate(Function *F) {
   std::string Annotation = "";
 
   /* Get annotation variable */
@@ -65,7 +64,7 @@ std::string llvm::readAnnotate(Function *F) {
     }
   }
 
-  return (Annotation);
+  return Annotation;
 }
 
 static std::string getFunctionAnnotation(Function *F) {
@@ -109,7 +108,7 @@ static std::string getFunctionAnnotation(Function *F) {
   return "";
 }
 
-bool llvm::shouldObfuscate(bool Flag, Function *F,
+bool shouldObfuscate(bool Flag, Function *F,
                            std::string const &Attribute) {
   std::string Attr = Attribute;
   std::string AttrNo = "no" + Attr;
@@ -137,7 +136,7 @@ bool llvm::shouldObfuscate(bool Flag, Function *F,
   return Flag;
 }
 
-void llvm::fixFunctionConstantExpr(Function *Func) {
+void fixFunctionConstantExpr(Function *Func) {
   // Replace ConstantExpr with equal instructions
   // Otherwise replacing on Constant will crash the compiler
   for (BasicBlock &BB : *Func) {
@@ -145,7 +144,7 @@ void llvm::fixFunctionConstantExpr(Function *Func) {
   }
 }
 
-void llvm::fixBasicBlockConstantExpr(BasicBlock *BB) {
+void fixBasicBlockConstantExpr(BasicBlock *BB) {
   // Replace ConstantExpr with equal instructions
   // Otherwise replacing on Constant will crash the compiler
   // Things to note:
@@ -175,7 +174,7 @@ void llvm::fixBasicBlockConstantExpr(BasicBlock *BB) {
 
 // LLVM-MSVC has this function, but the official LLVM version does not
 // (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).
-void llvm::lowerConstantExpr(Function &F) {
+void lowerConstantExpr(Function &F) {
   SmallPtrSet<Instruction *, 8> WorkList;
 
   for (inst_iterator It = inst_begin(F), E = inst_end(F); It != E; ++It) {
@@ -230,3 +229,4 @@ void llvm::lowerConstantExpr(Function &F) {
     }
   }
 }
+} // namespace llvm
