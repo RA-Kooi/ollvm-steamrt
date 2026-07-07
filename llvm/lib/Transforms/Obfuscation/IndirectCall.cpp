@@ -480,15 +480,8 @@ static std::vector<CallInst *> findCallSites(Module &M) {
 
         CallInst *CI = cast<CallInst>(&I);
 
-        AbstractCallSite CS(&CI->getCalledOperandUse());
-        if(!CS)
-          continue;
-
-        Function *Callee = CS.getCalledFunction();
-        if (Callee == nullptr)
-          continue;
-
-        if (Callee->isIntrinsic())
+        Function *Callee = CI->getCalledFunction();
+        if (!Callee || Callee->isIntrinsic())
           continue;
 
         CallSites.push_back(CI);
