@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
@@ -33,19 +34,16 @@ PreservedAnalyses FlatteningPass::run(Function &F,
 }
 
 static bool flatten(Function *F, FunctionAnalysisManager &AM) {
-  SmallVector<BasicBlock *, 8> OrigBb;
-  BasicBlock *LoopEntry, *LoopEnd;
-  LoadInst *Load;
-  SwitchInst *SwitchI;
-  AllocaInst *SwitchVar, *SwitchVarAddr;
   const DataLayout &DL = F->getParent()->getDataLayout();
+  LLVMContext &Ctx = F->getContext();
 
-  char ScramblingKey[16];
-  Cryptoutils->getBytes(ScramblingKey, 16);
+  IntegerType *IntType = Type::getInt32Ty(Ctx);
 
+  // Transforms all switches in the function to a list of branches.
   LowerSwitchPass SwitchPass;
   SwitchPass.run(*F, AM);
 
+  SmallVector<BasicBlock *, 8> OrigBBs;
   for (BasicBlock &BB : *F) {
     if (BB.isEHPad() || BB.isLandingPad()) {
       errs() << F->getName()
@@ -54,18 +52,20 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
 
       return false;
     }
+
     if (!isa<BranchInst>(BB.getTerminator()) &&
         !isa<ReturnInst>(BB.getTerminator()))
       return false;
-    OrigBb.emplace_back(&BB);
+
+    OrigBBs.emplace_back(&BB);
   }
 
   // Nothing to flatten
-  if (OrigBb.size() <= 1)
+  if (OrigBBs.size() <= 1)
     return false;
 
   // Remove first BB
-  OrigBb.erase(OrigBb.begin());
+  OrigBBs.erase(OrigBBs.begin());
 
   // Get a pointer on the first BB
   BasicBlock *Insert = &*F->begin();
@@ -79,71 +79,66 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
       --It;
 
     BasicBlock *TmpBb = Insert->splitBasicBlock(It, "first");
-    OrigBb.insert(OrigBb.begin(), TmpBb);
+    OrigBBs.insert(OrigBBs.begin(), TmpBb);
   }
 
   // Remove jump
-  Instruction *OldTerm = Insert->getTerminator();
+  Insert->getTerminator()->eraseFromParent();
 
+  IRBuilder<> IRB(Insert);
+
+  // TODO(Rafaël): Use PHI nodes instead
   // Create switch variable and set as it
-  SwitchVar = new AllocaInst(Type::getInt32Ty(F->getContext()),
-                             DL.getAllocaAddrSpace(), "switchVar", OldTerm->getIterator());
-  SwitchVarAddr =
-      new AllocaInst(PointerType::get(Type::getInt32Ty(F->getContext())->getContext(), 0),
-                     DL.getAllocaAddrSpace(), "", OldTerm->getIterator());
+  AllocaInst *SwitchVar = IRB.CreateAlloca(IntType, DL.getAllocaAddrSpace());
 
-  // Remove jump
-  OldTerm->eraseFromParent();
+  AllocaInst *SwitchVarAddr = IRB.CreateAlloca(PointerType::getUnqual(Ctx),
+                                               DL.getAllocaAddrSpace());
 
-  new StoreInst(ConstantInt::get(Type::getInt32Ty(F->getContext()),
-                                 Cryptoutils->scramble32(0, ScramblingKey)),
-                SwitchVar, Insert);
-  new StoreInst(SwitchVar, SwitchVarAddr, Insert);
+  Type *SwitchVarAddrTy = SwitchVarAddr->getAllocatedType();
+
+  char ScramblingKey[16];
+  Cryptoutils->getBytes(ScramblingKey, 16);
+
+  uint32_t Scram = Cryptoutils->scramble32(0, ScramblingKey);
+
+  IRB.CreateStore(ConstantInt::get(IntType, Scram), SwitchVar);
+  IRB.CreateStore(SwitchVar, SwitchVarAddr);
 
   // Create main loop
-  LoopEntry = BasicBlock::Create(F->getContext(), "loopEntry", F, Insert);
-  LoopEnd = BasicBlock::Create(F->getContext(), "loopEnd", F, Insert);
+  BasicBlock *LoopEntry = BasicBlock::Create(Ctx, "loopEntry", F, Insert);
+  BasicBlock *LoopEnd = BasicBlock::Create(Ctx, "loopEnd", F, Insert);
 
-  Load = new LoadInst(SwitchVar->getAllocatedType(), SwitchVar, "switchVar",
-                      LoopEntry);
-
-  // Move first BB on top
+  // Move first BB on top and jump to while loop
   Insert->moveBefore(LoopEntry);
   BranchInst::Create(LoopEntry, Insert);
 
   // loopEnd jump to loopEntry
   BranchInst::Create(LoopEntry, LoopEnd);
 
-  BasicBlock *SwDefault =
-      BasicBlock::Create(F->getContext(), "switchDefault", F, LoopEnd);
+  BasicBlock *SwDefault = BasicBlock::Create(Ctx, "switchDefault", F, LoopEnd);
   BranchInst::Create(LoopEnd, SwDefault);
 
+  IRB.SetInsertPoint(LoopEntry);
+  Value *Load = IRB.CreateLoad(IntType, SwitchVar);
+
   // Create switch instruction itself and set condition
-  SwitchI = SwitchInst::Create(&*F->begin(), SwDefault, 0, LoopEntry);
-  SwitchI->setCondition(Load);
+  SwitchInst *SwitchI = IRB.CreateSwitch(Load, SwDefault, OrigBBs.size());
 
-  // Remove branch jump from 1st BB and make a jump to the while
-  F->begin()->getTerminator()->eraseFromParent();
-
-  BranchInst::Create(LoopEntry, &*F->begin());
-
-  // Put BB in the switch
-  for (BasicBlock *I : OrigBb) {
-    ConstantInt *NumCase = nullptr;
-
+  // Put all BBs except the first in the switch
+  for (BasicBlock *I : OrigBBs) {
     // Move the BB inside the switch (only visual, no code logic)
     I->moveBefore(LoopEnd);
 
     // Add case to switch
-    NumCase = cast<ConstantInt>(ConstantInt::get(
-        SwitchI->getCondition()->getType(),
-        Cryptoutils->scramble32(SwitchI->getNumCases(), ScramblingKey)));
+    Scram = Cryptoutils->scramble32(SwitchI->getNumCases(), ScramblingKey);
+    ConstantInt *NumCase = ConstantInt::get(IntType, Scram);
+
     SwitchI->addCase(NumCase, I);
   }
 
   // Recalculate switchVar
-  for (BasicBlock *I : OrigBb) {
-    ConstantInt *NumCase = nullptr;
+  for (BasicBlock *I : OrigBBs) {
+    IRB.SetInsertPoint(I);
 
     // If it's a non-conditional jump
     if (I->getTerminator()->getNumSuccessors() == 1) {
@@ -152,64 +147,61 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
       I->getTerminator()->eraseFromParent();
 
       // Get next case
-      NumCase = SwitchI->findCaseDest(Succ);
+      ConstantInt *NumCase = SwitchI->findCaseDest(Succ);
 
       // If next case == default case (switchDefault)
       if (!NumCase) {
-        NumCase = cast<ConstantInt>(
-            ConstantInt::get(SwitchI->getCondition()->getType(),
-                             Cryptoutils->scramble32(SwitchI->getNumCases() - 1,
-                                                     ScramblingKey)));
+        int MyCase = SwitchI->getNumCases() - 1;
+        Scram = Cryptoutils->scramble32(MyCase, ScramblingKey);
+        NumCase = ConstantInt::get(IntType, Scram);
       }
 
       // Update switchVar and jump to the end of loop
-      new StoreInst(
-          NumCase,
-          new LoadInst(SwitchVarAddr->getAllocatedType(), SwitchVarAddr, "", I),
-          I);
-      BranchInst::Create(LoopEnd, I);
+      IRB.CreateStore(NumCase, IRB.CreateLoad(SwitchVarAddrTy, SwitchVarAddr));
+      IRB.CreateBr(LoopEnd);
+
       continue;
     }
 
     // If it's a conditional jump
-    if (I->getTerminator()->getNumSuccessors() == 2) {
+    Instruction *InstTerm = I->getTerminator();
+    if (InstTerm->getNumSuccessors() == 2) {
       // Get next cases
-      ConstantInt *NumCaseTrue =
-          SwitchI->findCaseDest(I->getTerminator()->getSuccessor(0));
-      ConstantInt *NumCaseFalse =
-          SwitchI->findCaseDest(I->getTerminator()->getSuccessor(1));
+      ConstantInt *NumCaseTrue = SwitchI->findCaseDest(InstTerm->getSuccessor(0));
+      ConstantInt *NumCaseFalse = SwitchI->findCaseDest(InstTerm->getSuccessor(1));
+
+      Scram = Cryptoutils->scramble32(SwitchI->getNumCases() - 1, ScramblingKey);
 
       // Check if next case == default case (switchDefault)
-      if (!NumCaseTrue) {
-        NumCaseTrue = cast<ConstantInt>(
-            ConstantInt::get(SwitchI->getCondition()->getType(),
-                             Cryptoutils->scramble32(SwitchI->getNumCases() - 1,
-                                                     ScramblingKey)));
-      }
+      if (!NumCaseTrue)
+        NumCaseTrue = ConstantInt::get(IntType, Scram);
 
-      if (!NumCaseFalse) {
-        NumCaseFalse = cast<ConstantInt>(
-            ConstantInt::get(SwitchI->getCondition()->getType(),
-                             Cryptoutils->scramble32(SwitchI->getNumCases() - 1,
-                                                     ScramblingKey)));
-      }
+      if (!NumCaseFalse)
+        NumCaseFalse = ConstantInt::get(IntType, Scram);
 
       // Create a SelectInst
-      BranchInst *Br = cast<BranchInst>(I->getTerminator());
-      SelectInst *Sel =
-          SelectInst::Create(Br->getCondition(), NumCaseTrue, NumCaseFalse, "",
-                             I->getTerminator()->getIterator());
+      if (!isa<BranchInst>(InstTerm)) {
+        errs() << "[Control flow flattening]: Terminator is not a branch "
+          "instruction!\n";
+
+        std::abort();
+      }
+
+      BranchInst *Br = cast<BranchInst>(InstTerm);
+      Value *Sel = IRB.CreateSelect(Br->getCondition(), NumCaseTrue, NumCaseFalse);
 
       // Erase terminator
-      I->getTerminator()->eraseFromParent();
+      InstTerm->eraseFromParent();
+
       // Update switchVar and jump to the end of loop
-      new StoreInst(
-          Sel,
-          new LoadInst(SwitchVarAddr->getAllocatedType(), SwitchVarAddr, "", I),
-          I);
-      BranchInst::Create(LoopEnd, I);
+      IRB.CreateStore(Sel, IRB.CreateLoad(SwitchVarAddrTy, SwitchVarAddr));
+      IRB.CreateBr(LoopEnd);
+
       continue;
     }
+
+    if (InstTerm->getNumSuccessors() > 2)
+      errs() << "Unhandled BasicBlock: successors > 2\n";
   }
 
   RegToMemPass::runPass(*F);
