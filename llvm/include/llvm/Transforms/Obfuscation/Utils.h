@@ -3,19 +3,11 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <string>
-
-#define INIT_CONTEXT(F) CONTEXT = &F.getContext()
-#define TYPE_I32 Type::getInt32Ty(*CONTEXT)
-#define CONST_I32(V) ConstantInt::get(TYPE_I32, V, false)
-#define CONST(T, V) ConstantInt::get(T, V)
-
-extern llvm::LLVMContext *CONTEXT;
 
 namespace llvm {
 // Read annotation values from llvm.global.annotations
