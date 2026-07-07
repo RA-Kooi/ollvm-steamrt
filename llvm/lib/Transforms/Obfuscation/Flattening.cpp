@@ -68,24 +68,17 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
   OrigBb.erase(OrigBb.begin());
 
   // Get a pointer on the first BB
-  Function::iterator Tmp = F->begin();
-  BasicBlock *Insert = &*Tmp;
+  BasicBlock *Insert = &*F->begin();
 
   // If main begin with an if
-  BranchInst *Br = nullptr;
-  if (isa<BranchInst>(Insert->getTerminator()))
-    Br = cast<BranchInst>(Insert->getTerminator());
+  if (isa<BranchInst>(Insert->getTerminator())) {
+    auto It = Insert->end();
+    --It;
 
-  if ((Br && Br->isConditional()) ||
-      Insert->getTerminator()->getNumSuccessors() > 1) {
-    BasicBlock::iterator I = Insert->end();
-    --I;
+    if (Insert->size() > 1)
+      --It;
 
-    if (Insert->size() > 1) {
-      --I;
-    }
-
-    BasicBlock *TmpBb = Insert->splitBasicBlock(I, "first");
+    BasicBlock *TmpBb = Insert->splitBasicBlock(It, "first");
     OrigBb.insert(OrigBb.begin(), TmpBb);
   }
 
