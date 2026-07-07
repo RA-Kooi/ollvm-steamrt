@@ -55,14 +55,11 @@ static void split(Function *F) {
   std::vector<BasicBlock *> OrigBb;
   // Save all basic blocks to prevent splitting while iterating over new basic
   // blocks.
-  for (Function::iterator I = F->begin(), IE = F->end(); I != IE; ++I) {
+  for (auto I = F->begin(), IE = F->end(); I != IE; ++I)
     OrigBb.push_back(&*I);
-  }
 
   // All basic blocks of the traversal function.
-  for (std::vector<BasicBlock *>::iterator I = OrigBb.begin(),
-                                           IE = OrigBb.end();
-       I != IE; ++I) {
+  for (auto I = OrigBb.begin(), IE = OrigBb.end(); I != IE; ++I) {
     BasicBlock *Curr = *I;
 
     // outs() << "\033[1;32mSplitNum : " << SplitNum << "\033[0m\n";
@@ -73,7 +70,7 @@ static void split(Function *F) {
     // No need to divide a basic block into only one instruction
     // Indivisible basic blocks containing PHI instructions
     if (Curr->size() < 2 || containsPHI(Curr)) {
-      /* outs() << "\033[0;33mThis BasicBlock is lower then two or had PIH "
+      /* outs() << "\033[0;33mThis BasicBlock is lower then two or had PHI "
                 "Instruction!\033[0m\n"; */
       continue;
     }
@@ -96,9 +93,8 @@ static void split(Function *F) {
 
     // Generate splits point
     std::vector<int> Test;
-    for (unsigned I = 1; I < Curr->size(); ++I) {
+    for (unsigned I = 1; I < Curr->size(); ++I)
       Test.push_back(I);
-    }
 
     // Shuffle
     if (Test.size() != 1) {
@@ -107,16 +103,16 @@ static void split(Function *F) {
     }
 
     // Segment
-    BasicBlock::iterator It = Curr->begin();
+    auto It = Curr->begin();
     BasicBlock *ToSplit = Curr;
     int Last = 0;
     for (int I = 0; I < SplitN; ++I) {
-      if (ToSplit->size() < 2) {
+      if (ToSplit->size() < 2)
         continue;
-      }
-      for (int J = 0; J < Test[I] - Last; ++J) {
+
+      for (int J = 0; J < Test[I] - Last; ++J)
         ++It;
-      }
+
       Last = Test[I];
       ToSplit = ToSplit->splitBasicBlock(It, ToSplit->getName() + ".split");
     }
@@ -127,16 +123,15 @@ static void split(Function *F) {
 
 static bool containsPHI(BasicBlock *BB) {
   for (Instruction &I : *BB) {
-    if (isa<PHINode>(&I)) {
+    if (isa<PHINode>(&I))
       return true;
-    }
   }
+
   return false;
 }
 
 static void shuffle(std::vector<int> &Vec) {
   int N = Vec.size();
-  for (int I = N - 1; I > 0; --I) {
+  for (int I = N - 1; I > 0; --I)
     std::swap(Vec[I], Vec[Cryptoutils->getUint32T() % (I + 1)]);
-  }
 }
