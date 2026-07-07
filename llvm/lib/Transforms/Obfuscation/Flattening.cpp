@@ -7,7 +7,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
-#include "llvm/Transforms/Scalar/Reg2Mem.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 
 #define DEBUG_TYPE "flattening"
@@ -34,7 +33,6 @@ PreservedAnalyses FlatteningPass::run(Function &F,
 }
 
 static bool flatten(Function *F, FunctionAnalysisManager &AM) {
-  const DataLayout &DL = F->getParent()->getDataLayout();
   LLVMContext &Ctx = F->getContext();
 
   IntegerType *IntType = Type::getInt32Ty(Ctx);
@@ -87,47 +85,39 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
 
   IRBuilder<> IRB(Insert);
 
-  // TODO(Rafaël): Use PHI nodes instead
   // Create switch variable and set as it
-  AllocaInst *SwitchVar = IRB.CreateAlloca(IntType, DL.getAllocaAddrSpace());
-
-  AllocaInst *SwitchVarAddr = IRB.CreateAlloca(PointerType::getUnqual(Ctx),
-                                               DL.getAllocaAddrSpace());
-
-  Type *SwitchVarAddrTy = SwitchVarAddr->getAllocatedType();
-
   char ScramblingKey[16];
   Cryptoutils->getBytes(ScramblingKey, 16);
 
   uint32_t Scram = Cryptoutils->scramble32(0, ScramblingKey);
 
-  IRB.CreateStore(ConstantInt::get(IntType, Scram), SwitchVar);
-  IRB.CreateStore(SwitchVar, SwitchVarAddr);
+  ConstantInt *ScramInit = IRB.getInt32(Scram);
 
   // Create main loop
   BasicBlock *LoopEntry = BasicBlock::Create(Ctx, "loopEntry", F, Insert);
-  BasicBlock *LoopEnd = BasicBlock::Create(Ctx, "loopEnd", F, Insert);
 
   // Move first BB on top and jump to while loop
   Insert->moveBefore(LoopEntry);
   BranchInst::Create(LoopEntry, Insert);
 
-  // loopEnd jump to loopEntry
-  BranchInst::Create(LoopEntry, LoopEnd);
-
-  BasicBlock *SwDefault = BasicBlock::Create(Ctx, "switchDefault", F, LoopEnd);
-  BranchInst::Create(LoopEnd, SwDefault);
+  // default case jump to LoopEntry
+  BasicBlock *SwDefault = BasicBlock::Create(Ctx, "switchDefault", F, LoopEntry);
+  BranchInst::Create(LoopEntry, SwDefault);
 
   IRB.SetInsertPoint(LoopEntry);
-  Value *Load = IRB.CreateLoad(IntType, SwitchVar);
+  PHINode *CurSw = IRB.CreatePHI(IntType, OrigBBs.size() + 2);
+  CurSw->addIncoming(ScramInit, Insert);
+  // NOTE(Rafaël): This looks weird, but if you set the incoming to its initial
+  // value it won't change the value. Functionally identical to a = a.
+  CurSw->addIncoming(ScramInit, SwDefault);
 
   // Create switch instruction itself and set condition
-  SwitchInst *SwitchI = IRB.CreateSwitch(Load, SwDefault, OrigBBs.size());
+  SwitchInst *SwitchI = IRB.CreateSwitch(CurSw, SwDefault, OrigBBs.size());
 
   // Put all BBs except the first in the switch
   for (BasicBlock *I : OrigBBs) {
     // Move the BB inside the switch (only visual, no code logic)
-    I->moveBefore(LoopEnd);
+    I->moveBefore(LoopEntry);
 
     // Add case to switch
     Scram = Cryptoutils->scramble32(SwitchI->getNumCases(), ScramblingKey);
@@ -157,8 +147,8 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
       }
 
       // Update switchVar and jump to the end of loop
-      IRB.CreateStore(NumCase, IRB.CreateLoad(SwitchVarAddrTy, SwitchVarAddr));
-      IRB.CreateBr(LoopEnd);
+      CurSw->addIncoming(NumCase, I);
+      IRB.CreateBr(LoopEntry);
 
       continue;
     }
@@ -194,17 +184,17 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
       InstTerm->eraseFromParent();
 
       // Update switchVar and jump to the end of loop
-      IRB.CreateStore(Sel, IRB.CreateLoad(SwitchVarAddrTy, SwitchVarAddr));
-      IRB.CreateBr(LoopEnd);
+      CurSw->addIncoming(Sel, I);
+      IRB.CreateBr(LoopEntry);
 
       continue;
     }
 
-    if (InstTerm->getNumSuccessors() > 2)
-      errs() << "Unhandled BasicBlock: successors > 2\n";
+    if (InstTerm->getNumSuccessors() > 2) {
+      errs() << "[Control flow flattening]: Unhandled BasicBlock: "
+        "successors > 2\n";
+    }
   }
-
-  RegToMemPass::runPass(*F);
 
   return true;
 }
