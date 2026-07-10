@@ -75,7 +75,8 @@ static void createIcallTable(
 static Value *emitPolynomials(IRBuilder<> &IRB, Value *Input, bool AlwaysTrue);
 static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTrue);
 
-static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB);
+static bool isValidCandidateInstruction(Instruction &I);
+static bool isValidCandidateOperand(Value *V);
 
 PreservedAnalyses IndirectCallPass::run(Module &M,
                                         ModuleAnalysisManager &AM) {
@@ -198,7 +199,6 @@ static void runOnFunction(
     AbstractCallSite CS(&CI->getCalledOperandUse());
     CB = CS.getInstruction();
 
-    BasicBlock *ThisBlock = CB->getParent();
     Function *Callee = CS.getCalledFunction();
 
     IRBuilder<> IRB(CB);
@@ -214,7 +214,23 @@ static void runOnFunction(
     bool RealIsTrue = Cryptoutils->getUint8T() & 1;
     bool DoSplit = Cryptoutils->getUint8T() & 1;
 
-    std::vector<Value *> Inputs = findUsableValues(CB, ThisBlock);
+    // NOTE(Rafaël): Normally you would use the DominatorTree here to check
+    // if the variable has been initialized. We don't actually want that here,
+    // since it makes static analysis more annoying. This does make llc
+    // complain about values not being dominated. But that's a sacrifice I'm
+    // willing to make here.
+    std::vector<Value *> Inputs = findUsableValues(
+        *CB,
+        isValidCandidateInstruction,
+        isValidCandidateOperand);
+
+    for(GlobalVariable &GV : M.globals()) {
+      if(GV.getName().starts_with("llvm."))
+        continue;
+
+      Inputs.push_back(&GV);
+    }
+
     bool DoMatrix = Inputs.size() ? Cryptoutils->getUint8T() & 1 : false;
 
     Idx = Cryptoutils->getRange(Inputs.size());
@@ -775,117 +791,30 @@ static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTru
   return IRB.CreateNot(Cond);
 }
 
-static std::vector<Value *> findUsableValues(CallBase *CB, BasicBlock *BB) {
-  auto IsValidCandidateInstruction = [](Instruction &I) {
-    if (isa<GetElementPtrInst>(&I))
-      return false;
-    if (isa<SwitchInst>(&I))
-      return false;
-    if (isa<CallInst>(&I))
+bool isValidCandidateInstruction(Instruction &I) {
+  if (isa<GetElementPtrInst>(&I))
+    return false;
+  if (isa<SwitchInst>(&I))
+    return false;
+  if (isa<CallInst>(&I))
+    return false;
+
+  return true;
+}
+
+bool isValidCandidateOperand(Value *V) {
+  if (isa<Constant>(V))
+    return false;
+
+  if (V->getType()->isIntegerTy()) {
+    Type *VType = V->getType();
+    if (VType->getIntegerBitWidth() == 1)
       return false;
 
     return true;
-  };
-
-  auto IsValidCandidateOperand = [](Value *V) {
-    if (isa<Constant>(V))
-      return false;
-
-    if (V->getType()->isIntegerTy()) {
-      Type *VType = V->getType();
-      if (VType->getIntegerBitWidth() == 1)
-        return false;
-
-      return true;
-    }
-
-    return false;
-  };
-
-  auto SearchBlock = [
-    IsValidCandidateInstruction,
-    IsValidCandidateOperand
-  ](BasicBlock *Block) -> std::vector<Value*> {
-    std::vector<Value*> Values;
-
-    // NOTE(Rafaël): Search for a suitable integer value that we can use as
-    // input for the generated polynomial. Skip PHI nodes and LandingPad
-    // instructions to be on the safe side.
-    for (auto It = Block->getFirstInsertionPt(), End = Block->end();
-         It != End;
-         ++It) {
-      Instruction &I = *It;
-
-      if (!IsValidCandidateInstruction(I))
-        continue;
-
-      // NOTE(Rafaël): Normally you would use the DominatorTree here to check
-      // if the variable has been initialized. We don't actually want that here,
-      // since it makes static analysis more annoying. This does make llc
-      // complain about values not being dominated. But that's a sacrifice I'm
-      // willing to make here.
-      for (auto OpIt = I.op_begin(), OpEnd = I.op_end(); OpIt != OpEnd; ++OpIt) {
-        Value *V = OpIt->get();
-        if (IsValidCandidateOperand(V))
-          Values.push_back(V);
-      }
-    }
-
-    return Values;
-  };
-
-  std::unordered_set<BasicBlock*> SearchedBlocks;
-  std::deque<BasicBlock*> Predecessors;
-  std::vector<Value*> Values;
-
-  while (true) {
-    if (!BB) {
-      if(Predecessors.size() == 0)
-        break;
-
-      BB = Predecessors.back();
-      Predecessors.pop_back();
-    }
-
-    std::vector<Value *> NewValues;
-
-    if (!SearchedBlocks.count(BB)) {
-      NewValues = SearchBlock(BB);
-      SearchedBlocks.insert(BB);
-    } else {
-      BB = nullptr;
-      continue;
-    }
-
-    Values.reserve(Values.size() + NewValues.size());
-    Values.insert(Values.end(), NewValues.begin(), NewValues.end());
-
-    auto Preds = predecessors(BB);
-    unsigned PredCount = std::distance(Preds.begin(), Preds.end());
-
-    if (PredCount > 1) {
-      for (auto It = Preds.begin(), End = Preds.end(); It != End; ++It)
-        Predecessors.push_front(*It);
-
-      BB = Predecessors.front();
-      Predecessors.pop_front();
-
-      continue;
-    }
-
-    BB = BB->getSinglePredecessor();
   }
 
-  Module &M = *CB->getParent()->getParent()->getParent();
-
-  for(GlobalVariable &GV : M.globals()) {
-    if(GV.getName().starts_with("llvm."))
-      continue;
-
-    Values.push_back(&GV);
-  }
-
-  return Values;
+  return false;
 }
 
 Mat2x2 Mat2x2::genInvertible() {
