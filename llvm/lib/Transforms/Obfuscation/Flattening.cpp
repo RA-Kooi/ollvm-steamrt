@@ -69,7 +69,7 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
     // NOTE(Rafaël): I don't remember the exact reason, but llc was complaining
     // about it when they were. Something about only specific origins being
     // allowed or something.
-    if (BB.isLandingPad() || isa<ResumeInst>(BB.getTerminator()))
+    if (BB.isLandingPad() || isa<ResumeInst>(BB.getTerminator()) || BB.isEHPad())
       continue;
 
     // It's possible that a landing pad is split and deduplicated giving a tree
