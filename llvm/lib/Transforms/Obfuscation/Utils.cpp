@@ -9,6 +9,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/NoFolder.h"
 
+#include <deque>
+#include <unordered_set>
+#include <vector>
+
 namespace llvm {
 std::string readAnnotate(Function *F) {
   std::string Annotation = "";
@@ -228,5 +232,92 @@ void lowerConstantExpr(Function &F) {
       WorkList.insert(NewInst);
     }
   }
+}
+
+std::vector<Value*> findUsableValues(
+    Instruction &Inst,
+    std::function<bool(Instruction &)> IsValidCandidateInstruction,
+    std::function<bool(Value *V)> IsValidCandidateOperand,
+    DominatorTree *DT,
+    size_t StopAfter) {
+  auto SearchBlock = [
+    &Inst,
+    DT,
+    IsValidCandidateInstruction,
+    IsValidCandidateOperand
+  ](BasicBlock *Block) -> std::vector<Value*> {
+    std::vector<Value*> Values;
+
+    // NOTE(Rafaël): Search for a suitable integer value that we can use as
+    // input for the generated polynomial. Skip PHI nodes and LandingPad
+    // instructions to be on the safe side.
+    for (auto It = Block->getFirstInsertionPt(), End = Block->end();
+         It != End;
+         ++It) {
+      Instruction &I = *It;
+
+      if (!IsValidCandidateInstruction(I))
+        continue;
+
+      for (auto OpIt = I.op_begin(), OpEnd = I.op_end(); OpIt != OpEnd; ++OpIt) {
+        Value *V = OpIt->get();
+
+        if (!DT && IsValidCandidateOperand(V))
+            Values.push_back(V);
+        else if (IsValidCandidateOperand(V) && DT && DT->dominates(V, &Inst))
+            Values.push_back(V);
+      }
+    }
+
+    return Values;
+  };
+
+  std::unordered_set<BasicBlock*> SearchedBlocks;
+  std::deque<BasicBlock*> Predecessors;
+  std::vector<Value*> Values;
+
+  BasicBlock *BB = Inst.getParent();
+  while (true) {
+    if (!BB) {
+      if(Predecessors.size() == 0)
+        break;
+
+      BB = Predecessors.back();
+      Predecessors.pop_back();
+    }
+
+    std::vector<Value *> NewValues;
+
+    if (!SearchedBlocks.count(BB)) {
+      NewValues = SearchBlock(BB);
+      SearchedBlocks.insert(BB);
+    } else {
+      BB = nullptr;
+      continue;
+    }
+
+    Values.reserve(Values.size() + NewValues.size());
+    Values.insert(Values.end(), NewValues.begin(), NewValues.end());
+
+    if (StopAfter >= 1 && Values.size() >= StopAfter)
+      break;
+
+    auto Preds = predecessors(BB);
+    unsigned PredCount = std::distance(Preds.begin(), Preds.end());
+
+    if (PredCount > 1) {
+      for (auto It = Preds.begin(), End = Preds.end(); It != End; ++It)
+        Predecessors.push_front(*It);
+
+      BB = Predecessors.front();
+      Predecessors.pop_front();
+
+      continue;
+    }
+
+    BB = BB->getSinglePredecessor();
+  }
+
+  return Values;
 }
 } // namespace llvm
