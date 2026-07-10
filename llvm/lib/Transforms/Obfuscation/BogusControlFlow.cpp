@@ -135,6 +135,7 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 #include <deque>
 #include <vector>
 
@@ -328,10 +329,11 @@ static void addBogusFlow(BasicBlock *Basic, Function &F) {
   // and so on for the first block. We have to let the phi nodes in the first
   // part, because they actually are updated in the second part according to
   // them.
-  auto I1 = (BasicBlock::iterator)Basic->getFirstNonPHIOrDbgOrLifetime();
-  if (I1 != Basic->end())
+  auto I1 = Basic->getFirstNonPHIOrDbgOrLifetime()->getIterator();
+  while(I1->isEHPad())
+    ++I1;
 
-  if (Basic->getFirstNonPHIIt()->isEHPad())
+  if (I1 == Basic->getTerminator()->getIterator())
     return;
 
   // Fix Verifier.cpp: "CatchPadInst not the first non-PHI instruction in the
@@ -437,7 +439,7 @@ BasicBlock *createAlteredBasicBlock(BasicBlock *Basic, const Twine &Name,
     // Loop over the operands of the instruction
     for (auto Opi = I->op_begin(), Ope = I->op_end(); Opi != Ope; ++Opi) {
       // get the value for the operand
-      Value *V = MapValue(*Opi, VMap, RF_None, 0);
+      Value *V = MapValue(*Opi, VMap, RF_NoModuleLevelChanges, 0);
 
       if (V) {
         *Opi = V;
