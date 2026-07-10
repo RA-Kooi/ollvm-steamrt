@@ -86,6 +86,7 @@
 #include "llvm/Transforms/Instrumentation/PGOForceFunctionAttrs.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Obfuscation/AliasAccess.h"
+#include "llvm/Transforms/Obfuscation/AntiAnalysisJump.h"
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/Transforms/Obfuscation/Flattening.h"
 #include "llvm/Transforms/Obfuscation/IndirectBranch.h"
@@ -1775,6 +1776,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
+  FPM.addPass(AntiAnalysisJumpPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   return MPM;
@@ -2472,6 +2474,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
+  FPM.addPass(AntiAnalysisJumpPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   if (isLTOPreLink(Phase))

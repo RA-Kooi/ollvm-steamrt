@@ -52,6 +52,9 @@ Prefixing the annotation with `no` disables that specific pass for that function
   Originally adapted from Goron, but it has been basically fully rewritten making it an original feature.  
   Replaces a function call with one of 2 invariant conditions and picks its target  
   from one of 2 tables based on the invariant condition.
+- Anti-analysis jumps `-mllvm -aaj`
+  - `-mllvm -aaj_prob=20` controls the probability of each basic block being processed by the pass.  
+  Inserts a conditional jump followed by a byte that is either a prefix or push opcode, confusing disassemblers.
 
 # A note on performance
 

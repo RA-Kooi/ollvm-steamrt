@@ -1,5 +1,6 @@
 add_llvm_component_library(LLVMObfuscation
   AliasAccess.cpp
+  AntiAnalysisJump.cpp
   BogusControlFlow.cpp
   CryptoUtils.cpp
   Flattening.cpp
@@ -25,4 +26,5 @@ add_llvm_component_library(LLVMObfuscation
   Core
   Scalar
   Support
+  TargetParser
   TransformUtils)
