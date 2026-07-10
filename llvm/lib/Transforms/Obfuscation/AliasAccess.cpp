@@ -290,7 +290,7 @@ static void process(Function &F) {
 template<typename T>
 static void getRandomNoRepeat(T UpperBound, T Size, std::vector<T> &Result) {
   static_assert(std::is_integral_v<T>);
-  assert(upper_bound >= size);
+  assert(UpperBound >= Size);
 
   std::vector<T> List;
   for (T I = 0; I < UpperBound; I++)
