@@ -7,7 +7,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Transforms/Scalar/Reg2Mem.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #define DEBUG_TYPE "flattening"
 
@@ -17,14 +20,13 @@ STATISTIC(Flattened, "Functions flattened");
 
 static cl::opt<bool> FlaEnabled("fla", cl::init(false), cl::desc("Flattening"));
 
-static bool flatten(Function *F, FunctionAnalysisManager &AM);
+static bool flatten(Function &F, FunctionAnalysisManager &AM);
 
 PreservedAnalyses FlatteningPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
   if (shouldObfuscate(FlaEnabled, &F, "fla")) {
-    if (flatten(&F, AM)) {
+    if (flatten(F, AM))
       ++Flattened;
-    }
 
     return PreservedAnalyses::none();
   }
@@ -32,28 +34,59 @@ PreservedAnalyses FlatteningPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-static bool flatten(Function *F, FunctionAnalysisManager &AM) {
-  LLVMContext &Ctx = F->getContext();
+static bool flatten(Function &F, FunctionAnalysisManager &AM) {
+  LLVMContext &Ctx = F.getContext();
 
   IntegerType *IntType = Type::getInt32Ty(Ctx);
 
   // Transforms all switches in the function to a list of branches.
   LowerSwitchPass SwitchPass;
-  SwitchPass.run(*F, AM);
+  SwitchPass.run(F, AM);
 
-  SmallVector<BasicBlock *, 8> OrigBBs;
-  for (BasicBlock &BB : *F) {
-    if (BB.isEHPad() || BB.isLandingPad()) {
-      errs() << F->getName()
-             << " Contains Exception Handing Instructions and is unsupported "
-                "for flattening in the open-source version of Hikari.\n";
+  // Demote all registers to the stack.
+  RegToMemPass R2MPass;
+  R2MPass.run(F, AM);
 
-      return false;
+  auto IsExtendedLandingPad = [](BasicBlock &BB) -> bool {
+    for (PHINode &Phi : BB.phis()) {
+      for (auto &Inc : Phi.incoming_values()) {
+        auto *I = dyn_cast_or_null<Instruction>(&Inc);
+        if(!I)
+          continue;
+
+        if (I->getParent()->isLandingPad())
+          return true;
+      }
     }
 
-    if (!isa<BranchInst>(BB.getTerminator()) &&
-        !isa<ReturnInst>(BB.getTerminator()))
-      return false;
+    return false;
+  };
+
+  SmallVector<BasicBlock *, 8> OrigBBs;
+  for (BasicBlock &BB : F)
+  {
+    // Landing pads and the resume function cannot be part of the flattening.
+    // NOTE(Rafaël): I don't remember the exact reason, but llc was complaining
+    // about it when they were. Something about only specific origins being
+    // allowed or something.
+    if (BB.isLandingPad() || isa<ResumeInst>(BB.getTerminator()))
+      continue;
+
+    // It's possible that a landing pad is split and deduplicated giving a tree
+    // like this:
+    // ┌------┐ ┌-------┐
+    // | lpad | | lpad2 |
+    // └---┬--┘ └---┬---┘
+    //     |        |
+    //     └----┬---┘
+    //          |
+    //  ┌-------┴-----┐
+    //  | shared_lpad |
+    //  └-------------┘
+    //  The shared landing pad also cannot be part of the flattening, so we
+    //  skip it.
+    if (IsExtendedLandingPad(BB))
+      continue;
 
     OrigBBs.emplace_back(&BB);
   }
@@ -62,14 +95,21 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
   if (OrigBBs.size() <= 1)
     return false;
 
+  // Get a pointer to the first BB
+  BasicBlock *Insert = &*F.begin();
+
   // Remove first BB
   OrigBBs.erase(OrigBBs.begin());
 
-  // Get a pointer on the first BB
-  BasicBlock *Insert = &*F->begin();
+  // If main begins with a branch
+  Instruction *Term = Insert->getTerminator();
 
-  // If main begin with an if
-  if (isa<BranchInst>(Insert->getTerminator())) {
+  bool Branches = isa<BranchInst>(Term)
+    || isa<InvokeInst>(Term)
+    || isa<ResumeInst>(Term)
+    || isa<CallBrInst>(Term);
+
+  if (Branches) {
     auto It = Insert->end();
     --It;
 
@@ -94,14 +134,14 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
   ConstantInt *ScramInit = IRB.getInt32(Scram);
 
   // Create main loop
-  BasicBlock *LoopEntry = BasicBlock::Create(Ctx, "loopEntry", F, Insert);
+  BasicBlock *LoopEntry = BasicBlock::Create(Ctx, "loopEntry", &F, Insert);
 
   // Move first BB on top and jump to while loop
   Insert->moveBefore(LoopEntry);
   BranchInst::Create(LoopEntry, Insert);
 
   // default case jump to LoopEntry
-  BasicBlock *SwDefault = BasicBlock::Create(Ctx, "switchDefault", F, LoopEntry);
+  BasicBlock *SwDefault = BasicBlock::Create(Ctx, "switchDefault", &F, LoopEntry);
   BranchInst::Create(LoopEntry, SwDefault);
 
   IRB.SetInsertPoint(LoopEntry);
@@ -132,8 +172,15 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
 
     // If it's a non-conditional jump
     if (I->getTerminator()->getNumSuccessors() == 1) {
-      // Get successor and delete terminator
+      // Get successor
       BasicBlock *Succ = I->getTerminator()->getSuccessor(0);
+
+      // If the block jumped to is part of exception handling, don't replace
+      // the jump. Since the resume block cannot be part of the while loop.
+      if (isa<ResumeInst>(Succ->getTerminator()))
+        continue;
+
+      // and delete terminator
       I->getTerminator()->eraseFromParent();
 
       // Get next case
@@ -157,8 +204,11 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
     Instruction *InstTerm = I->getTerminator();
     if (InstTerm->getNumSuccessors() == 2) {
       // Get next cases
-      ConstantInt *NumCaseTrue = SwitchI->findCaseDest(InstTerm->getSuccessor(0));
-      ConstantInt *NumCaseFalse = SwitchI->findCaseDest(InstTerm->getSuccessor(1));
+      BasicBlock *SuccT = InstTerm->getSuccessor(0);
+      BasicBlock *SuccF = InstTerm->getSuccessor(1);
+
+      ConstantInt *NumCaseTrue = SwitchI->findCaseDest(SuccT);
+      ConstantInt *NumCaseFalse = SwitchI->findCaseDest(SuccF);
 
       Scram = Cryptoutils->scramble32(SwitchI->getNumCases() - 1, ScramblingKey);
 
@@ -169,23 +219,47 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
       if (!NumCaseFalse)
         NumCaseFalse = ConstantInt::get(IntType, Scram);
 
-      // Create a SelectInst
-      if (!isa<BranchInst>(InstTerm)) {
+      if (!isa<BranchInst>(InstTerm) && !isa<InvokeInst>(InstTerm)) {
         errs() << "[Control flow flattening]: Terminator is not a branch "
           "instruction!\n";
 
-        std::abort();
+        InstTerm->print(errs());
+        errs() << "\n";
+
+        continue;
       }
 
+      // If the terminator is an invoke instruction, change the jump to the
+      // continue handler to the while loop instead.
+      if (isa<InvokeInst>(InstTerm)) {
+        ConstantInt *Sel = SuccT->isLandingPad() ? NumCaseFalse : NumCaseTrue;
+        CurSw->addIncoming(Sel, I);
+
+        InstTerm->setSuccessor(SuccT->isLandingPad() ? 1 : 0, LoopEntry);
+
+        continue;
+      }
+
+      bool ResumeIsTrue = isa<ResumeInst>(SuccT->getTerminator());
+      bool ResumeIsFalse = isa<ResumeInst>(SuccF->getTerminator());
+
       BranchInst *Br = cast<BranchInst>(InstTerm);
+
+      // Create a SelectInst
       Value *Sel = IRB.CreateSelect(Br->getCondition(), NumCaseTrue, NumCaseFalse);
+
+      // Update switchVar
+      CurSw->addIncoming(Sel, I);
+
+      if (ResumeIsTrue || ResumeIsFalse) {
+        IRB.CreateCondBr(Br->getCondition(),
+                         ResumeIsTrue ? SuccT : LoopEntry,
+                         ResumeIsFalse ? SuccF : LoopEntry);
+      } else
+        IRB.CreateBr(LoopEntry);
 
       // Erase terminator
       InstTerm->eraseFromParent();
-
-      // Update switchVar and jump to the end of loop
-      CurSw->addIncoming(Sel, I);
-      IRB.CreateBr(LoopEntry);
 
       continue;
     }
@@ -195,6 +269,14 @@ static bool flatten(Function *F, FunctionAnalysisManager &AM) {
         "successors > 2\n";
     }
   }
+
+  // Recalculate the dominator tree to promote our demotions back to registers.
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  DT.recalculate(F);
+
+  // Promote what we can to registers.
+  PromotePass PP;
+  PP.run(F, AM);
 
   return true;
 }
