@@ -8,9 +8,13 @@
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Scalar/Reg2Mem.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
+
+#include <iterator>
+#include <unordered_set>
 
 #define DEBUG_TYPE "flattening"
 
@@ -47,6 +51,8 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
   RegToMemPass R2MPass;
   R2MPass.run(F, AM);
 
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+
   auto IsExtendedLandingPad = [](BasicBlock &BB) -> bool {
     for (PHINode &Phi : BB.phis()) {
       for (auto &Inc : Phi.incoming_values()) {
@@ -61,6 +67,49 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
 
     return false;
   };
+
+  std::unordered_set<BasicBlock*> Edges;
+  Edges.reserve(F.size());
+
+  // Find all invoke instructions
+  for (BasicBlock &BB : F) {
+    auto *Inv = dyn_cast_or_null<InvokeInst>(BB.getTerminator());
+    if (!Inv)
+      continue;
+
+    BasicBlock *SuccT = Inv->getSuccessor(0);
+    BasicBlock *SuccF = Inv->getSuccessor(1);
+
+    BasicBlock *Dest = SuccT->isLandingPad() ? SuccF : SuccT;
+
+    if (std::distance(Inv->users().begin(), Inv->users().end()) == 0)
+      continue;
+
+    for (User *U : Inv->users()) {
+      auto *I = dyn_cast_or_null<Instruction>(U);
+      if (!I)
+        continue;
+
+      BasicBlock *Parent = I->getParent();
+
+      if (Parent != Dest) {
+        errs() << "[Control flow flattening]: Invoke instruction does not have"
+          "all of its uses in its destination block! "
+          "Skipping <" << F.getName() << "> for flattening!\n";
+
+        // Promote what we can to registers.
+        PromotePass PP;
+        PP.run(F, AM);
+
+        return false;
+      }
+
+      BasicBlock *Edge = SplitEdge(Inv->getParent(), Dest, &DT);
+      I->moveBeforePreserving(*Edge, Edge->begin());
+
+      Edges.insert(Edge);
+    }
+  }
 
   SmallVector<BasicBlock *, 8> OrigBBs;
   for (BasicBlock &BB : F)
@@ -156,6 +205,11 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
 
   // Put all BBs except the first in the switch
   for (BasicBlock *I : OrigBBs) {
+    // Don't make split edges from blocks with invoke instructions part
+    // of the flattened control flow graph directly.
+    if (Edges.count(I))
+      continue;
+
     // Move the BB inside the switch (only visual, no code logic)
     I->moveBefore(LoopEntry);
 
@@ -232,6 +286,13 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
       // If the terminator is an invoke instruction, change the jump to the
       // continue handler to the while loop instead.
       if (isa<InvokeInst>(InstTerm)) {
+        // If this is a block with an invoke instruction, it's possible that its
+        // return value gets used in its successor. This means we need to ignore
+        // block itself and only use its successor in the flattening tree.
+        BasicBlock *Dest = SuccT->isLandingPad() ? SuccF : SuccT;
+        if (Edges.count(Dest))
+          continue;
+
         ConstantInt *Sel = SuccT->isLandingPad() ? NumCaseFalse : NumCaseTrue;
         CurSw->addIncoming(Sel, I);
 
@@ -271,7 +332,6 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
   }
 
   // Recalculate the dominator tree to promote our demotions back to registers.
-  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   DT.recalculate(F);
 
   // Promote what we can to registers.
