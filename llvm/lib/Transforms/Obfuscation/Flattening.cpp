@@ -273,7 +273,9 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
       if (!NumCaseFalse)
         NumCaseFalse = ConstantInt::get(IntType, Scram);
 
-      if (!isa<BranchInst>(InstTerm) && !isa<InvokeInst>(InstTerm)) {
+      if (!isa<BranchInst>(InstTerm)
+          && !isa<InvokeInst>(InstTerm)
+          && !isa<IndirectBrInst>(InstTerm)) {
         errs() << "[Control flow flattening]: Terminator is not a branch "
           "instruction!\n";
 
@@ -300,6 +302,9 @@ static bool flatten(Function &F, FunctionAnalysisManager &AM) {
 
         continue;
       }
+
+      if(isa<IndirectBrInst>(InstTerm))
+        continue;
 
       bool ResumeIsTrue = isa<ResumeInst>(SuccT->getTerminator());
       bool ResumeIsFalse = isa<ResumeInst>(SuccF->getTerminator());
