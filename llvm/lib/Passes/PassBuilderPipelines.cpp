@@ -1759,23 +1759,21 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   if (isLTOPreLink(Phase))
     addRequiredLTOPreLinkPasses(MPM);
 
-  FunctionPassManager FPM;
-  FPM.addPass(IndirectBranchPass());
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-
   MPM.addPass(StringEncryptionPass());
   MPM.addPass(IndirectCallPass());
 
-  FPM = FunctionPassManager();
+  FunctionPassManager FPM;
   FPM.addPass(IndirectGlobalVariablePass());
   FPM.addPass(LinearMBA());
   FPM.addPass(SubstitutionPass());
   FPM.addPass(AliasAccess());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
+  FPM = FunctionPassManager();
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
+  FPM.addPass(IndirectBranchPass());
   FPM.addPass(AntiAnalysisJumpPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
@@ -2457,23 +2455,21 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   invokeOptimizerLastEPCallbacks(MPM, Level, Phase);
 
-  FunctionPassManager FPM;
-  FPM.addPass(IndirectBranchPass());
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-
   MPM.addPass(StringEncryptionPass());
   MPM.addPass(IndirectCallPass());
 
-  FPM = FunctionPassManager();
+  FunctionPassManager FPM;
   FPM.addPass(IndirectGlobalVariablePass());
   FPM.addPass(LinearMBA());
   FPM.addPass(SubstitutionPass());
   FPM.addPass(AliasAccess());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
+  FPM = FunctionPassManager();
   FPM.addPass(BogusControlFlowPass());
   FPM.addPass(SplitBasicBlockPass());
   FPM.addPass(FlatteningPass());
+  FPM.addPass(IndirectBranchPass());
   FPM.addPass(AntiAnalysisJumpPass());
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
