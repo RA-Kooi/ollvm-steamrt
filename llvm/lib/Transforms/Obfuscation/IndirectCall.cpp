@@ -18,7 +18,6 @@
 #include <iterator>
 #include <random>
 #include <unordered_map>
-#include <unordered_set>
 
 using namespace llvm;
 
@@ -291,7 +290,7 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
 
   std::default_random_engine Engine(Cryptoutils->getUint64T());
 
-  std::unordered_set<Function *> Callees;
+  std::vector<Function *> Callees;
   std::transform(
       CallSites.cbegin(),
       CallSites.cend(),
@@ -302,9 +301,27 @@ static std::unordered_map<Constant *, size_t> createCalleeTables(
         return CS.getCalledFunction();
       });
 
+  std::sort(
+      Callees.begin(),
+      Callees.end(),
+      [](Function const *const F1, Function const *const F2)
+      {
+        return F1->getName() < F2->getName();
+      });
+
+  Callees.erase(
+      std::unique(
+          Callees.begin(),
+          Callees.end(),
+          [](Function const *const F1, Function const *const F2)
+          {
+            return F1->getName() == F2->getName();
+          }),
+      Callees.end());
+
   std::vector<Function *> Dummies = genDummyFuncs(M, Callees.size());
 
-  Callees.insert(Dummies.cbegin(), Dummies.cend());
+  std::copy_n(Dummies.cbegin(), Dummies.size(), std::back_inserter(Callees));
 
   //                     Normal,    Encrypted, SubKey
   std::vector<std::tuple<Constant*, Constant*, Constant*>> CalleeFuncs;
