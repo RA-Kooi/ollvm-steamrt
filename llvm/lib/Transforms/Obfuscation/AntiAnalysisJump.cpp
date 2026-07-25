@@ -113,7 +113,7 @@ static void applyAntiAnalysis(Function &F, DominatorTree &DT) {
         *It,
         isValidCandidateInstruction,
         isValidCandidateOperand,
-        &DT,
+        DT,
         1);
 
     if (Inputs.empty())
