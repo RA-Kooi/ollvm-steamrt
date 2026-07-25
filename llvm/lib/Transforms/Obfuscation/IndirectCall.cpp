@@ -3,6 +3,7 @@
 #include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
@@ -14,7 +15,6 @@
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 
 #include <algorithm>
-#include <deque>
 #include <iterator>
 #include <random>
 #include <unordered_map>
@@ -47,7 +47,6 @@ static void runOnFunction(
     IntegerType *IntType,
     std::vector<CallInst *> const &CallSites,
     std::unordered_map<Constant *, size_t> const &Callee2Idx,
-    GlobalVariable *PolyDummy,
     GlobalVariable *Callees,
     GlobalVariable *Keys,
     GlobalVariable *SubKeys,
@@ -65,7 +64,6 @@ static std::vector<Function *> genDummyFuncs(Module &M, size_t CallSiteCount);
 
 static void createIcallTable(
     Module &M,
-    GlobalVariable *PolyDummy,
     GlobalVariable *Callees,
     GlobalVariable *Keys,
     GlobalVariable *DummyCallees,
@@ -74,9 +72,6 @@ static void createIcallTable(
 
 static Value *emitPolynomials(IRBuilder<> &IRB, Value *Input, bool AlwaysTrue);
 static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTrue);
-
-static bool isValidCandidateInstruction(Instruction &I);
-static bool isValidCandidateOperand(Value *V);
 
 PreservedAnalyses IndirectCallPass::run(Module &M,
                                         ModuleAnalysisManager &AM) {
@@ -117,23 +112,8 @@ PreservedAnalyses IndirectCallPass::run(Module &M,
   auto *EncryptedCallees = M.getNamedGlobal("ollvm_icall_data");
   auto *EncryptedDummies = M.getNamedGlobal("ollvm_icall_data_dummy");
 
-  ConstantInt *Zero = ConstantInt::get(IntType, 0);
-
-  auto *PolyDummy = new GlobalVariable(
-      M,
-      IntType,
-      false,
-      GlobalValue::LinkageTypes::LinkOnceODRLinkage,
-      Zero,
-      "ollvm_icall_poly_dummy");
-
-  PolyDummy->setComdat(M.getOrInsertComdat("ollvm_icall_poly_dummy"));
-
-  appendToUsed(M, {PolyDummy});
-
   createIcallTable(
       M,
-      PolyDummy,
       Callees,
       Keys,
       DummyCallees,
@@ -151,7 +131,6 @@ PreservedAnalyses IndirectCallPass::run(Module &M,
           IntType,
           CallSites,
           Callee2Idx,
-          PolyDummy,
           EncryptedCallees,
           Keys,
           SubKeys,
@@ -169,7 +148,6 @@ static void runOnFunction(
     IntegerType *IntType,
     std::vector<CallInst *> const &CallSites,
     std::unordered_map<Constant *, size_t> const &Callee2Idx,
-    GlobalVariable *PolyDummy,
     GlobalVariable *Callees,
     GlobalVariable *Keys,
     GlobalVariable *SubKeys,
@@ -182,6 +160,12 @@ static void runOnFunction(
   auto *ATy = dyn_cast<ArrayType>(Keys->getValueType());
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
+
+  auto RandomRegister = [IntType](IRBuilder<> &IRB) -> Value* {
+    auto *AsmType = FunctionType::get(IntType, {}, false);
+    auto *Asm = InlineAsm::get(AsmType, "", "=r", true);
+    return IRB.CreateCall(Asm);
+  };
 
   for (CallInst *CI : CallSites) {
     SmallVector<Value *, 8> Args;
@@ -214,53 +198,17 @@ static void runOnFunction(
     bool RealIsTrue = Cryptoutils->getUint8T() & 1;
     bool DoSplit = Cryptoutils->getUint8T() & 1;
 
-    // NOTE(Rafaël): Normally you would use the DominatorTree here to check
-    // if the variable has been initialized. We don't actually want that here,
-    // since it makes static analysis more annoying. This does make llc
-    // complain about values not being dominated. But that's a sacrifice I'm
-    // willing to make here.
-    std::vector<Value *> Inputs = findUsableValues(
-        *CB,
-        isValidCandidateInstruction,
-        isValidCandidateOperand);
+    bool DoMatrix = Cryptoutils->getUint8T() & 1;
 
-    for(GlobalVariable &GV : M.globals()) {
-      if(GV.getName().starts_with("llvm."))
-        continue;
-
-      Inputs.push_back(&GV);
-    }
-
-    bool DoMatrix = Inputs.size() ? Cryptoutils->getUint8T() & 1 : false;
-
-    Idx = Cryptoutils->getRange(Inputs.size());
-
-    Value *X = Inputs.size()
-      ? Inputs[Idx]
-      // NOTE(Rafaël): Make sure it's a volatile load so ghidra's analysis engine
-      // and hopefully other engines will not immediately fold it.
-      : IRB.CreateLoad(IntType, PolyDummy, true);
-
-    if (auto *GV = dyn_cast_or_null<GlobalVariable>(X)) {
-      X = IRB.CreatePtrToInt(GV, IntType);
-    }
+    Value *X = RandomRegister(IRB);
 
     Value *Cond;
     if (!DoMatrix)
       Cond = emitPolynomials(IRB, X, RealIsTrue);
     else {
-      size_t Idx2 = Idx;
-      while(Idx2 == Idx && Inputs.size() >= 2)
-        Idx2 = Cryptoutils->getRange(Inputs.size());
+      Value *Y = RandomRegister(IRB);
 
-      Value *Y = Inputs.size() >= 2
-        ? Inputs[Idx2]
-        : IRB.CreateLoad(IntType, PolyDummy, true);
-
-      if (auto *GV = dyn_cast_or_null<GlobalVariable>(Y))
-        Y = IRB.CreatePtrToInt(GV, IntType);
-
-      Cond = emitInvMatrix(IRB, X, Y, RealIsTrue);
+      Cond = emitInvMatrix(IRB, X, Y, RealIsTrue, Bits64);
     }
 
     auto EmitDestPtr = [&IRB, Zero, TargetIdx, IntType, ATy, Keys, SubKeys](
@@ -546,7 +494,6 @@ static std::vector<Function *> genDummyFuncs(Module &M, size_t CalleeCount) {
 
 static void createIcallTable(
     Module &M,
-    GlobalVariable *PolyDummy,
     GlobalVariable *Callees,
     GlobalVariable *Keys,
     GlobalVariable *Dummies,
@@ -555,7 +502,6 @@ static void createIcallTable(
   /*
    * void ollvm_icall_encrypt()
    * {
-   *     ollvm_icall_poly_dummy = <rand>;
    *     int idx = 0;
    *
    *     do
@@ -578,12 +524,6 @@ static void createIcallTable(
 
   ConstantInt *Zero = ConstantInt::get(IntType, 0);
   ConstantInt *One = ConstantInt::get(IntType, 1);
-
-  uint64_t RandVal = PointerSize == 8
-    ? Cryptoutils->getUint64T()
-    : Cryptoutils->getUint32T();
-
-  ConstantInt *Rand = ConstantInt::get(IntType, RandVal);
 
   IRBuilder<> IRB(Ctx);
 
@@ -615,8 +555,6 @@ static void createIcallTable(
   BasicBlock *End = BasicBlock::Create(Ctx, "End", EncryptFunc);
 
   IRB.SetInsertPoint(Base);
-
-  IRB.CreateStore(Rand, PolyDummy);
 
   IRB.CreateBr(LoopLocals);
 
@@ -738,15 +676,7 @@ static Value *emitPolynomials(IRBuilder<> &IRB, Value *Input, bool AlwaysTrue) {
 
 static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTrue) {
   Type *XType = X->getType();
-  Type *YType = Y->getType();
-  Type *IntType = XType->getIntegerBitWidth() > YType->getIntegerBitWidth()
-    ? XType
-    : YType;
-
-  if (XType->getIntegerBitWidth() > YType->getIntegerBitWidth())
-    Y = IRB.CreateZExt(Y, IntType);
-  else if (XType->getIntegerBitWidth() < YType->getIntegerBitWidth())
-    X = IRB.CreateZExt(X, IntType);
+  Type *IntType = XType;
 
   Mat2x2 Mat = Mat2x2::genInvertible();
   Mat2x2 InvMat = Mat.inverse();
@@ -789,32 +719,6 @@ static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTru
     return Cond;
 
   return IRB.CreateNot(Cond);
-}
-
-bool isValidCandidateInstruction(Instruction &I) {
-  if (isa<GetElementPtrInst>(&I))
-    return false;
-  if (isa<SwitchInst>(&I))
-    return false;
-  if (isa<CallInst>(&I))
-    return false;
-
-  return true;
-}
-
-bool isValidCandidateOperand(Value *V) {
-  if (isa<Constant>(V))
-    return false;
-
-  if (V->getType()->isIntegerTy()) {
-    Type *VType = V->getType();
-    if (VType->getIntegerBitWidth() == 1)
-      return false;
-
-    return true;
-  }
-
-  return false;
 }
 
 Mat2x2 Mat2x2::genInvertible() {
