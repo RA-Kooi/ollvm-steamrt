@@ -34,8 +34,8 @@ static cl::opt<unsigned> IcallMinCallees(
         "Bigger size means more binary bloat, but more noise."));
 
 struct Mat2x2 {
-  static Mat2x2 genInvertible();
-  Mat2x2 inverse() const;
+  static Mat2x2 genInvertible(bool Bits64);
+  Mat2x2 inverse(bool Bits64) const;
 
   uint64_t A, B, C, D;
 };
@@ -70,7 +70,12 @@ static void createIcallTable(
     GlobalVariable *EncryptedDummies);
 
 static Value *emitPolynomials(IRBuilder<> &IRB, Value *Input, bool AlwaysTrue);
-static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTrue);
+static Value *emitInvMatrix(
+    IRBuilder<> &IRB,
+    Value *X,
+    Value *Y,
+    bool AlwaysTrue,
+    bool Bits64);
 
 PreservedAnalyses IndirectCallPass::run(Module &M,
                                         ModuleAnalysisManager &AM) {
@@ -691,12 +696,17 @@ static Value *emitPolynomials(IRBuilder<> &IRB, Value *Input, bool AlwaysTrue) {
   return IRB.CreateICmpEQ(Px, Px1);
 }
 
-static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTrue) {
+static Value *emitInvMatrix(
+    IRBuilder<> &IRB,
+    Value *X,
+    Value *Y,
+    bool AlwaysTrue,
+    bool Bits64) {
   Type *XType = X->getType();
   Type *IntType = XType;
 
-  Mat2x2 Mat = Mat2x2::genInvertible();
-  Mat2x2 InvMat = Mat.inverse();
+  Mat2x2 Mat = Mat2x2::genInvertible(Bits64);
+  Mat2x2 InvMat = Mat.inverse(Bits64);
 
   Constant *MA = ConstantInt::get(IntType, Mat.A);
   Constant *MB = ConstantInt::get(IntType, Mat.B);
@@ -738,22 +748,35 @@ static Value *emitInvMatrix(IRBuilder<> &IRB, Value *X, Value *Y, bool AlwaysTru
   return IRB.CreateNot(Cond);
 }
 
-Mat2x2 Mat2x2::genInvertible() {
-  uint64_t A = Cryptoutils->getUint64T() | 1;
-  uint64_t B = Cryptoutils->getUint64T() & ~1uLL;
-  uint64_t C = Cryptoutils->getUint64T();
-  uint64_t D = Cryptoutils->getUint64T() | 1;
+Mat2x2 Mat2x2::genInvertible(bool Bits64) {
+  uint64_t A;
+  uint64_t B;
+  uint64_t C;
+  uint64_t D;
+
+  if (Bits64) {
+    A = Cryptoutils->getUint64T() | 1;
+    B = Cryptoutils->getUint64T() & ~1uLL;
+    C = Cryptoutils->getUint64T();
+    D = Cryptoutils->getUint64T() | 1;
+  }
+  else {
+    A = Cryptoutils->getUint32T() | 1;
+    B = Cryptoutils->getUint32T() & ~1uLL;
+    C = Cryptoutils->getUint32T();
+    D = Cryptoutils->getUint32T() | 1;
+  }
 
   return Mat2x2{A, B, C, D};
 }
 
-Mat2x2 Mat2x2::inverse() const {
+Mat2x2 Mat2x2::inverse(bool Bits64) const {
   uint64_t Det = (A * D) - (B * C);
   if (!(Det & 1))
     std::abort();
 
   uint64_t DetInv = Det;
-  for (int I = 0; I < 5; ++I)
+  for (int I = 0, Len = Bits64 ? 6 : 5; I < Len; ++I)
     DetInv = DetInv * (2 - Det * DetInv);
 
   uint64_t InvA =  D * DetInv;
