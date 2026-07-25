@@ -238,19 +238,19 @@ std::vector<Value*> findUsableValues(
     Instruction &Inst,
     std::function<bool(Instruction &)> IsValidCandidateInstruction,
     std::function<bool(Value *V)> IsValidCandidateOperand,
-    DominatorTree *DT,
+    DominatorTree &DT,
     size_t StopAfter) {
   auto SearchBlock = [
     &Inst,
-    DT,
+    &DT,
     IsValidCandidateInstruction,
     IsValidCandidateOperand
   ](BasicBlock *Block) -> std::vector<Value*> {
     std::vector<Value*> Values;
 
-    // NOTE(Rafaël): Search for a suitable integer value that we can use as
-    // input for the generated polynomial. Skip PHI nodes and LandingPad
-    // instructions to be on the safe side.
+    // NOTE(Rafaël): Search for a suitable value that we can use as input for
+    // the generated code. Skip PHI nodes and LandingPad instructions to be on
+    // the safe side.
     for (auto It = Block->getFirstInsertionPt(), End = Block->end();
          It != End;
          ++It) {
@@ -262,9 +262,7 @@ std::vector<Value*> findUsableValues(
       for (auto OpIt = I.op_begin(), OpEnd = I.op_end(); OpIt != OpEnd; ++OpIt) {
         Value *V = OpIt->get();
 
-        if (!DT && IsValidCandidateOperand(V))
-            Values.push_back(V);
-        else if (IsValidCandidateOperand(V) && DT && DT->dominates(V, &Inst))
+        if (IsValidCandidateOperand(V) && DT.dominates(V, &Inst))
             Values.push_back(V);
       }
     }

@@ -27,14 +27,13 @@ void fixFunctionConstantExpr(Function *Func);
 // (LLVM: 17.0.6 | LLVM-MSVC: 3.2.6).
 void lowerConstantExpr(Function &F);
 
-// Search from the instruction upwards, optionally using the dominator tree to
-// verify if the values dominate the instruction. If StopAfter is 0, this
-// function will keep going until all preceding basic blocks have been searched.
+// Search from the instruction upwards. If StopAfter is 0, this function will
+// keep going until all preceding basic blocks have been searched.
 std::vector<Value*> findUsableValues(
     Instruction &Inst,
     std::function<bool(Instruction &)> IsValidCandidateInstruction,
     std::function<bool(Value *V)> IsValidCandidateOperand,
-    DominatorTree *DT = nullptr,
+    DominatorTree &DT,
     size_t StopAfter = 0);
 } // namespace llvm
 
