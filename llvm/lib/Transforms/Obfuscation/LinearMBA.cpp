@@ -200,8 +200,11 @@ static Value *buildLinearMBA(BinaryOperator *OriginalInsn,
   uint32_t Seed = Cryptoutils->getUint32T();
   std::shuffle(Terms.begin(), Terms.end(), std::mt19937{Seed});
 
-  bool NSW = OriginalInsn->hasNoSignedWrap();
-  bool NUW = OriginalInsn->hasNoUnsignedWrap();
+  bool CanWrap = isa<OverflowingBinaryOperator>(OriginalInsn)
+    || isa<TruncInst>(OriginalInsn);
+
+  bool NSW = CanWrap ? OriginalInsn->hasNoSignedWrap() : false;
+  bool NUW = CanWrap ? OriginalInsn->hasNoUnsignedWrap() : false;
   Value *X = OriginalInsn->getOperand(0), *Y = OriginalInsn->getOperand(1);
   Value *Expr = nullptr;
 
