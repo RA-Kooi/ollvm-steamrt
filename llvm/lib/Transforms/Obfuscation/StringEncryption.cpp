@@ -130,6 +130,16 @@ bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled) {
     if (!CDS->isCString())
       continue;
 
+    StringRef Name = GV.getName();
+
+    // NOTE(Rafaël): Skip RTTI type names, as this breaks libunwind assumptions
+    // and causes an infinite loop.
+    if (Name.starts_with("_ZTS")
+        || Name.starts_with("_ZTI")
+        || Name.starts_with("_ZTV")) {
+      continue;
+    }
+
     auto Entry = std::make_unique<CSPEntry>();
     StringRef Data = CDS->getRawDataValues();
     Entry->Data.reserve(Data.size());
@@ -145,7 +155,7 @@ bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled) {
         M,
         CDS->getType(),
         false,
-        GlobalValue::PrivateLinkage,
+        GlobalValue::ExternalLinkage,
         ZeroInit,
         "dec" + Twine::utohexstr(Entry->ID) + GV.getName());
 
@@ -153,7 +163,7 @@ bool PassState::doStrEnc(Module &M, ModuleAnalysisManager &AM, bool Enabled) {
         M,
         Type::getInt32Ty(Ctx),
         false,
-        GlobalValue::PrivateLinkage,
+        GlobalValue::ExternalLinkage,
         Zero,
         "dec_status_" + Twine::utohexstr(Entry->ID) + GV.getName());
 
@@ -311,9 +321,11 @@ static Function *buildDecryptFunction(Module *M, const CSPEntry *Entry) {
 
   Function *DecFunc = Function::Create(
       FuncTy,
-      GlobalValue::PrivateLinkage,
+      GlobalValue::LinkageTypes::ExternalLinkage,
       "goron_decrypt_string_" + Twine::utohexstr(Entry->ID),
       M);
+
+  DecFunc->addFnAttr(Attribute::NoUnwind);
 
   auto *ArgIt = DecFunc->arg_begin();
   Argument *PlainString = ArgIt; // output
@@ -411,8 +423,10 @@ static Function *buildInitFunction(Module *M, const CSUser *User) {
 
   Function *InitFunc = Function::Create(
       FuncTy,
-      GlobalValue::PrivateLinkage,
+      GlobalValue::LinkageTypes::ExternalLinkage,
       "__global_variable_initializer_" + User->GV->getName(), M);
+
+  InitFunc->addFnAttr(Attribute::NoUnwind);
 
   auto *ArgIt = InitFunc->arg_begin();
   Argument *Thiz = ArgIt;
@@ -529,7 +543,8 @@ bool PassState::processConstantStringBlockPHI(
 
       Instruction *InsertPoint = PHI->getIncomingBlock(I)->getTerminator();
       IRBuilder<> IRB(InsertPoint);
-      IRB.CreateCall(User->InitFunc, {User->DecGV});
+      CallInst *CI = IRB.CreateCall(User->InitFunc, {User->DecGV});
+      CI->setTailCall();
 
       Inst.replaceUsesOfWith(GV, User->DecGV);
       MaybeDeadGlobalVars.insert(GV);
@@ -554,7 +569,8 @@ bool PassState::processConstantStringBlockPHI(
         EncryptedStringTable,
         {IRB.getInt32(0), IRB.getInt32(Entry->Offset)});
 
-    IRB.CreateCall(Entry->DecFunc, {OutBuf, Data});
+    CallInst *CI = IRB.CreateCall(Entry->DecFunc, {OutBuf, Data});
+    CI->setTailCall();
 
     Inst.replaceUsesOfWith(GV, Entry->DecGV);
     MaybeDeadGlobalVars.insert(GV);
@@ -586,7 +602,8 @@ bool PassState::processConstantStringBlock(
         }
 
         IRBuilder<> IRB(&Inst);
-        IRB.CreateCall(User->InitFunc, {User->DecGV});
+        CallInst *CI = IRB.CreateCall(User->InitFunc, {User->DecGV});
+        CI->setTailCall();
 
         Inst.replaceUsesOfWith(GV, User->DecGV);
         MaybeDeadGlobalVars.insert(GV);
@@ -608,7 +625,8 @@ bool PassState::processConstantStringBlock(
             EncryptedStringTable,
             {IRB.getInt32(0), IRB.getInt32(Entry->Offset)});
 
-        IRB.CreateCall(Entry->DecFunc, {OutBuf, Data});
+        CallInst *CI = IRB.CreateCall(Entry->DecFunc, {OutBuf, Data});
+        CI->setTailCall();
 
         Inst.replaceUsesOfWith(GV, Entry->DecGV);
         MaybeDeadGlobalVars.insert(GV);
