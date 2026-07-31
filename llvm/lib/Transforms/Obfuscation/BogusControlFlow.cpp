@@ -329,17 +329,23 @@ static void addBogusFlow(BasicBlock *Basic, Function &F) {
   // and so on for the first block. We have to let the phi nodes in the first
   // part, because they actually are updated in the second part according to
   // them.
-  auto I1 = Basic->getFirstNonPHIOrDbgOrLifetime()->getIterator();
-  while(I1->isEHPad())
-    ++I1;
+  auto It = Basic->getFirstNonPHIOrDbgOrLifetime()->getIterator();
+  auto IsValidInst = [](decltype(It) &It) {
+    return It->isEHPad()
+      || isa<AllocaInst>(*It)
+      || isa<DbgInfoIntrinsic>(*It);
+  };
 
-  if (I1 == Basic->getTerminator()->getIterator())
+  while (It != Basic->end() && IsValidInst(It))
+    ++It;
+
+  if (It == Basic->end() || It == Basic->getTerminator()->getIterator())
     return;
 
   // Fix Verifier.cpp: "CatchPadInst not the first non-PHI instruction in the
   // block.", "The unwind destination does not have an exception handling
   // instruction!"
-  BasicBlock *SplitBB = Basic->splitBasicBlock(I1, "splitBB");
+  BasicBlock *SplitBB = Basic->splitBasicBlock(It, "splitBB");
 
   DEBUG_WITH_TYPE("gen", errs() << "bcf: First and original basic blocks: ok\n");
 
